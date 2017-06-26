@@ -110,3 +110,31 @@ the job depends on the step that failed:
   `script` `after_failure` will be executed before leaving the job.
 * If `after_success`, `after_failure`, `after_deploy` or `after_script` return a
   non-zero exit code, this doesn't affect the job's status.
+
+### Job Stages
+
+By default all jobs will be executed sequentially and the build status of one
+build doesn't affect other builds. However sometimes you want to execute some
+jobs only after others have successfully finished. With job stages you can use
+this feature.
+
+First you need to define which stages to run and the order of execution. Jobs of
+the next stage will be entered only if all jobs of the previous one finished
+successfully. You can map a job to a stage with the stages key.
+
+```YAML
+stages:
+  - first_stage
+  - second_stage
+
+jobs:
+  job_a:
+    stage: first_stage
+    script: echo 'a'
+  job_b:
+    stage: first_stage
+    script: echo 'b'
+  job_c:
+    stage: second_stage
+    script: echo 'c'
+```
