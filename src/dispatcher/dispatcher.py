@@ -29,6 +29,25 @@ import time
 import yaml
 
 
+def convStrToDict(data, keys):
+    """
+    Helper function to search recursively for keys in data and convert its value
+    to a list, if it's not already a list.
+
+    Parameters
+    ----------
+    data : dict
+       The data to be converted.
+    keys : list
+       Which keys to be searched in data.
+    """
+    for key, value in data.items():
+        if key in keys and type(value) is not list:
+            data[key] = [value]
+        elif type(value) is dict:
+            convStrToDict(value, keys)
+
+
 # Parse the command line arguments. If any of the arguments are invalid, or
 # mandatory arguments are missing, an error message will be printed by the
 # argparse parser and this script exited immediately.
@@ -119,6 +138,20 @@ for i in range(retries):
         if (i == retries - 1):
             sys.exit('Failed to create a new pipeline.')
         continue
+
+
+# All step keys may be defined either with a string value for single commands,
+# or a list of commands. The following code will convert non-lists to lists, so
+# the runner and UI don't have to handle both cases.
+#
+# The following list defines all keys that will be searched recursively by
+# the convStrToDict method. If other keys need to be converted, just add them to
+# this list.
+array_keys = ['before_install', 'install', 'before_script', 'script',
+              'after_success', 'after_failure', 'before_deploy', 'deploy',
+              'after_deploy', 'after_script']
+convStrToDict(job_config, array_keys)
+
 
 # Store the pipeline's configuration file in the pipeline's root directory. This
 # file will be used by the runner and UI. In addition the current timestamp will
