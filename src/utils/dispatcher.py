@@ -94,6 +94,24 @@ except yaml.scanner.ScannerError:
     sys.exit('Could not parse the configuration file for James CI.')
 
 
+# Check for 'meta' key in pipeline configuration. This key must not be defined
+# neither for the pipeline itself, nor the jobs, as this key is reserved for
+# management purposes.
+if ('meta' in pipeline_config or
+        any('meta' in job for job in pipeline_config['jobs'])):
+    sys.exit('The \'meta\' key must not used in the configuration.')
+
+# Add metadata for this pipeline. This data will be used by the runner and UI
+# for providing additional information or management purposes.
+pipeline_config['meta'] = dict()
+pipeline_config['meta']['type'] = args.type
+pipeline_config['meta']['created'] = int(time.time())
+
+if 'git' not in pipeline_config:
+    pipeline_config['git'] = dict()
+pipeline_config['git']['revision'] = args.revision
+
+
 # Create a directory for the new pipeline. If this is the first job for a
 # project, the root directory for this project will be created and the initial
 # pipeline number be 1. There will be up to 3 retries, if a concurrent
@@ -121,8 +139,6 @@ for i in range(retries):
         continue
 
 # Store the pipeline's configuration file in the pipeline's root directory. This
-# file will be used by the runner and UI. In addition the current timestamp will
-# be stored in this file, so the UI can display the submission time.
-pipeline_config['created_at'] = int(time.time())
+# file will be used by the runner and UI.
 yaml.dump(pipeline_config, open(pipeline_dir + '/pipeline.yml', 'w'),
           default_flow_style=False)
