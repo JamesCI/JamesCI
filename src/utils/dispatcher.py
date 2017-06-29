@@ -69,8 +69,8 @@ try:
     # Get the contents of the James CI configuration file in the given revision.
     # Errors about invalid revisions and not available files will be handled
     # below.
-    job_config = yaml.load(repository.tree(args.revision)
-                           ['.james-ci.yml'].data_stream)
+    pipeline_config = yaml.load(repository.tree(args.revision)
+                                ['.james-ci.yml'].data_stream)
 
 except git.exc.InvalidGitRepositoryError:
     # If the repository couldn't be opened, exit with an error message. This
@@ -123,6 +123,6 @@ for i in range(retries):
 # Store the pipeline's configuration file in the pipeline's root directory. This
 # file will be used by the runner and UI. In addition the current timestamp will
 # be stored in this file, so the UI can display the submission time.
-job_config['created_at'] = int(time.time())
-yaml.dump(job_config, open(pipeline_dir + '/pipeline.yml', 'w'),
+pipeline_config['created_at'] = int(time.time())
+yaml.dump(pipeline_config, open(pipeline_dir + '/pipeline.yml', 'w'),
           default_flow_style=False)
