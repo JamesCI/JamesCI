@@ -37,7 +37,7 @@ argparser.add_argument('project',
                        help='Project name (i.e. the repositorie\'s name).')
 argparser.add_argument('revision',
                        help='Git revision the jobs are launched for.')
-argparser.add_argument('--config', '-c', metavar='FILE',
+argparser.add_argument('--config', '-c', metavar='FILE', default='',
                        help='Configuration to use for the dispatcher.')
 argparser.add_argument('--type', '-t', choices=['branch', 'tag'],
                        metavar='TYPE', default='branch',
