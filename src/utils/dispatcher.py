@@ -33,7 +33,7 @@ import yaml
 # mandatory arguments are missing, an error message will be printed by the
 # argparse parser and this script exited immediately.
 argparser = argparse.ArgumentParser()
-argparser.add_argument('project', metavar='NAME',
+argparser.add_argument('project',
                        help='Project name (i.e. the repositorie\'s name).')
 argparser.add_argument('revision',
                        help='Git revision the jobs are launched for.')
@@ -124,5 +124,5 @@ for i in range(retries):
 # file will be used by the runner and UI. In addition the current timestamp will
 # be stored in this file, so the UI can display the submission time.
 job_config['created_at'] = int(time.time())
-yaml.dump(job_config, open(pipeline_dir + '/pipeline.yaml', 'w'),
+yaml.dump(job_config, open(pipeline_dir + '/pipeline.yml', 'w'),
           default_flow_style=False)
