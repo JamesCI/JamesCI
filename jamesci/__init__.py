@@ -18,8 +18,5 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-[general]
-data_dir: /srv/www/james/data # Where to store the job-related data.
-
-[git]
-url_template: "git@localhost:%(project)s.git"
+from jamesci.job import Job
+from jamesci.pipeline import Pipeline
