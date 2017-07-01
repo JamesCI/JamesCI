@@ -42,6 +42,20 @@ class Shell(object):
         self._output = output
         self._env = env if env is not None else os.environ
 
+    def updateEnv(self, env):
+        """
+        Set a specialized environment for the shell.
+
+        Note: The environment will be defined in addition to the current one.
+              That means you can't delete any variables in this step.
+
+        Parameters:
+        ---
+        env: dict
+            Additional environment variables to be set.
+        """
+        self._env.update(env)
+
     def run(self, commands):
         """
         Run commands in the current working directory. The output of stdout and

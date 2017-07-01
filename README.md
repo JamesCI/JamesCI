@@ -149,3 +149,16 @@ If this doesn't fit your needs, you can change this behavior either on a global
 level or individually for a job by setting its `git` key. The value of `depth`
 will change the clone depth, setting this value to zero will disable any git
 operations. Setting `submodules` to false will disable submodule initialization.
+
+### Environment Variables
+
+The runner will inherit the environment of the shell it is executed in. However,
+sometimes you want to set environment variables for your pipeline or a specific
+job. You can set custom environment variables on a global level or individually
+for a job by filling `env` with key-value pairs. *Note: This behavior is
+different from Travis CI, where lists will be used!*
+
+```YAML
+env:
+  FOO: "Hello World"
+```

@@ -123,6 +123,8 @@ def main():
     # executed. A dedicated environment class will be used, so specific
     # environment settings need to be set only once.
     shell = jamesci.Shell(logfile)
+    if 'env' in job:
+        shell.updateEnv(job['env'])
 
     # Try creating a temporary directory for this job. It will be a subdirectory
     # of the current working directory. All following operations will be

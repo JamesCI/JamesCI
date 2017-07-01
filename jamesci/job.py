@@ -60,7 +60,7 @@ class Job(Pipeline):
         """
         return ['before_install', 'install', 'before_script', 'script',
                 'after_success', 'after_failure', 'before_deploy', 'deploy',
-                'after_deploy', 'after_script', 'git']
+                'after_deploy', 'after_script', 'git', 'env']
 
     def __contains__(self, key):
         """
