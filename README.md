@@ -138,3 +138,14 @@ jobs:
     stage: second_stage
     script: echo 'c'
 ```
+
+### Configuring Git Operations
+
+By default the runner will clone the repository with a depth of 50 commits into
+a temporary directory and checks out the pipeline's revision. All submodules
+will be initialized and updated.
+
+If this doesn't fit your needs, you can change this behavior either on a global
+level or individually for a job by setting its `git` key. The value of `depth`
+will change the clone depth, setting this value to zero will disable any git
+operations. Setting `submodules` to false will disable submodule initialization.
