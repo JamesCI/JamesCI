@@ -224,8 +224,17 @@ def main():
                     run_commands(logfile, job['after_failed'])
                 except subprocess.CalledProcessError:
                     pass
-
             finish_job('failed')
+
+        except KeyError:
+            # The 'script' step is not defined for this job. In this case the
+            # job's status will be errored, as this is an error in the James CI
+            # configuration and not in the user's code.
+            logfile.write('\n\n' +
+                          colors.color('Job has no script defined.',
+                                       fg='red', style='bold') +
+                          '\n\n')
+            finish_job('errored')
 
         # Run the 'after_success' step of the job. If executing this step fails,
         # the failure will be ignored. This might feel strange, but is pretty
