@@ -20,3 +20,4 @@
 
 from jamesci.job import Job
 from jamesci.pipeline import Pipeline
+from jamesci.shell import Shell

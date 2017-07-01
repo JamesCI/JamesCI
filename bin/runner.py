@@ -34,46 +34,6 @@ import traceback
 import yaml
 
 
-def run_commands(output, commands):
-    """
-    Run commands in the current working directory. The output of stdout and
-    stderr will be written into file.
-
-    Parameters:
-    ---
-    output: file
-        Where to dump the output of the commands.
-    commands: str | list
-        Single command or list of commands to execute.
-    """
-    # If commands is a single sting, convert it to a list with a single item, so
-    # the below code can handle both types of input without much overhead.
-    if isinstance(commands, str):
-        commands = [commands]
-
-    for command in commands:
-        # Write a line about the command to be executed to output and execute
-        # the command. The output will be flushed before executing the command,
-        # so the output file doesn't get corrupted.
-        try:
-            output.write('$ ' + command + '\n')
-            output.flush()
-            subprocess.check_call([command], shell=True,
-                                  stdout=logfile, stderr=logfile)
-
-        except subprocess.CalledProcessError as e:
-            # If the command fails, write a red line with a short status info
-            # and the exit code to output. The exception will be re-raised if
-            # not deactivated, so the callee get's notified about it.
-            output.write('\n' +
-                         colors.color('The command "' + command +
-                                      '" failed and exited with ' +
-                                      str(e.returncode) + '.',
-                                      fg='red', style='bold') +
-                         '\n\n')
-            raise
-
-
 def finish_job(status, exit=True):
     """
     Set the finished job's metadata.
@@ -153,11 +113,16 @@ def main():
     global logfile
     logfile = open(job.dir() + '/' + args.job + '.txt', 'w')
 
-    # Set the job's status to running, so the UI and other tools may be notified and
-    # can view some data from the logs in live view.
+    # Set the job's status to running, so the UI and other tools may be notified
+    # and can view some data from the logs in live view.
     with job:
         job.setStatus('running')
         job['meta']['start'] = int(time.time())
+
+    # Create a new shell environment, in which the job's commands can be
+    # executed. A dedicated environment class will be used, so specific
+    # environment settings need to be set only once.
+    shell = jamesci.Shell(logfile)
 
     # Try creating a temporary directory for this job. It will be a subdirectory
     # of the current working directory. All following operations will be
@@ -192,7 +157,7 @@ def main():
             # Execute all git commands. If an error occurs while executing them,
             # the job's status will be failed.
             try:
-                run_commands(logfile, git_commands)
+                shell.run(git_commands)
             except subprocess.CalledProcessError:
                 finish_job('errored')
 
@@ -202,7 +167,7 @@ def main():
         try:
             for step in ['before_install', 'install', 'before_script']:
                 if step in job:
-                    run_commands(logfile, job[step])
+                    shell.run(job[step])
         except subprocess.CalledProcessError:
             finish_job('errored')
 
@@ -212,7 +177,7 @@ def main():
         # distinguished from other steps in the output.
         try:
             logfile.write('\n')
-            run_commands(logfile, job['script'])
+            shell.run(job['script'])
             logfile.write('\n')
 
         except subprocess.CalledProcessError:
@@ -221,7 +186,7 @@ def main():
             # errored anyway later.
             if 'after_failed' in job:
                 try:
-                    run_commands(logfile, job['after_failed'])
+                    shell.run(job['after_failed'])
                 except subprocess.CalledProcessError:
                     pass
             finish_job('failed')
@@ -244,7 +209,7 @@ def main():
         # reachable and execution will continue with the deploy steps.
         if 'after_success' in job:
             try:
-                run_commands(logfile, job['after_success'])
+                shell.run(job['after_success'])
             except subprocess.CalledProcessError:
                 pass
 
@@ -252,7 +217,7 @@ def main():
         # the job will be marked as errored and the execution stops immediately.
         if 'before_deploy' in job:
             try:
-                run_commands(logfile, job['before_deploy'])
+                shell.run(job['before_deploy'])
             except subprocess.CalledProcessError:
                 finish_job('errored')
 
@@ -260,7 +225,7 @@ def main():
         # job will be marked as failed and execution stops immediately.
         if 'deploy' in job:
             try:
-                run_commands(logfile, job['deploy'])
+                shell.run(job['deploy'])
             except subprocess.CalledProcessError:
                 finish_job('failed')
 
@@ -271,7 +236,7 @@ def main():
         for step in ['after_deploy', 'after_script']:
             if step in job:
                 try:
-                    run_commands(logfile, job[step])
+                    shell.run(job[step])
                 except subprocess.CalledProcessError:
                     pass
 
