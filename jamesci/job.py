@@ -19,6 +19,7 @@
 #
 
 from jamesci.pipeline import Pipeline
+from jamesci.status import Status
 
 
 class Job(Pipeline):
@@ -127,9 +128,9 @@ class Job(Pipeline):
         Get the job's status
         """
         if 'meta' not in self or 'status' not in self['meta']:
-            return 'pending'
+            return Status.pending
         else:
-            return self['meta']['status']
+            return Status[self['meta']['status']]
 
     @status.setter
     def status(self, status):
@@ -143,4 +144,4 @@ class Job(Pipeline):
         """
         if 'meta' not in self:
             self['meta'] = dict()
-        self['meta']['status'] = status
+        self['meta']['status'] = str(status)

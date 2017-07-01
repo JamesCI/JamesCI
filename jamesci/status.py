@@ -18,7 +18,23 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-from jamesci.job import Job
-from jamesci.pipeline import Pipeline
-from jamesci.shell import Shell
-from jamesci.status import Status
+import enum
+
+
+class Status(enum.IntEnum):
+    """
+    Status enum class for jobs and pipelines.
+    """
+
+    pending = 0
+    running = 1
+    errored = 2
+    failed = 3
+    success = 4
+
+    def __str__(self):
+        """
+        Return the status name as string. This function is required to remove
+        the enum's class name prefix when string representation is required.
+        """
+        return self.name

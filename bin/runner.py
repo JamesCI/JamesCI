@@ -46,6 +46,7 @@ def finish_job(status, exit=True):
         Wheter to exit after all processing has been done or not.
     """
     with job:
+        # Update the job's metadata.
         job.status = status
         job['meta']['end'] = int(time.time())
 
@@ -116,7 +117,7 @@ def main():
     # Set the job's status to running, so the UI and other tools may be notified
     # and can view some data from the logs in live view.
     with job:
-        job.status = 'running'
+        job.status = jamesci.Status.running
         job['meta']['start'] = int(time.time())
 
     # Create a new shell environment, in which the job's commands can be
@@ -142,7 +143,7 @@ def main():
                 shell.run(config['runner']['prolog_script'], echo=False,
                           failMessage='Runner\'s prolog script failed.')
             except subprocess.CalledProcessError:
-                finish_job('errored')
+                finish_job(jamesci.Status.errored)
 
         # Clone the git repository into the current working directory. By
         # default only the 50 latest commits will be cloned (shallow clone). If
@@ -173,7 +174,7 @@ def main():
             try:
                 shell.run(git_commands)
             except subprocess.CalledProcessError:
-                finish_job('errored')
+                finish_job(jamesci.Status.errored)
 
         # Run all steps prior the 'script' step. If executing one of the steps
         # fails, the job will be marked as errored and the execution stops
@@ -183,7 +184,7 @@ def main():
                 if step in job:
                     shell.run(job[step])
         except subprocess.CalledProcessError:
-            finish_job('errored')
+            finish_job(jamesci.Status.errored)
 
         # Run the 'script' step of the job. If executing this step fails, the
         # 'after_failure' step will be executed before leaving the job. The
@@ -203,7 +204,7 @@ def main():
                     shell.run(job['after_failed'])
                 except subprocess.CalledProcessError:
                     pass
-            finish_job('failed')
+            finish_job(jamesci.Status.failed)
 
         except KeyError:
             # The 'script' step is not defined for this job. In this case the
@@ -213,7 +214,7 @@ def main():
                           colors.color('Job has no script defined.',
                                        fg='red', style='bold') +
                           '\n\n')
-            finish_job('errored')
+            finish_job(jamesci.Status.errored)
 
         # Run the 'after_success' step of the job. If executing this step fails,
         # the failure will be ignored. This might feel strange, but is pretty
@@ -233,7 +234,7 @@ def main():
             try:
                 shell.run(job['before_deploy'])
             except subprocess.CalledProcessError:
-                finish_job('errored')
+                finish_job(jamesci.Status.errored)
 
         # Run the 'deploy' step of the job. If executing this step fails, the
         # job will be marked as failed and execution stops immediately.
@@ -241,7 +242,7 @@ def main():
             try:
                 shell.run(job['deploy'])
             except subprocess.CalledProcessError:
-                finish_job('failed')
+                finish_job(jamesci.Status.failed)
 
         # Run the 'after_deploy' and 'after_script' steps of the jobs. If
         # executing these steps fails, the failure will be ignored and the next
@@ -256,7 +257,7 @@ def main():
 
         # The job has been finished now. Update the job's status and do the
         # post-processing now.
-        finish_job('success')
+        finish_job(jamesci.Status.errored, exit=False)
 
 
 if __name__ == "__main__":
@@ -277,7 +278,7 @@ if __name__ == "__main__":
         # not be exited after the post-processing, so additional error-data can
         # be appended to the job's logfile.
         if job is not None:
-            finish_job('errored', exit=False)
+            finish_job(jamesci.Status.errored, exit=False)
 
         # Add a trace to the job's logfile, if it has been opened already.
         if logfile is not None:
