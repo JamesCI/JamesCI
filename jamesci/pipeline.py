@@ -50,18 +50,12 @@ class Pipeline(object):
         self._pipeline = pipeline
 
         self._data = None
-        self.__fh = open(self.dir() + '/' + 'pipeline.yml', 'r+')
+        self.__fh = open(self.dir + '/' + 'pipeline.yml', 'r+')
 
         # Load the data initially to check, if the YAML syntax is valid and
         # eceptions can be caught this early. The loaded data will be readonly,
         # as no 'with' statement has been entered yet.
         self.__load()
-
-    def dir(self):
-        """
-        Return the pipeline's data directory. This can be used to access assets.
-        """
-        return self._path + '/' + self._project + '/' + str(self._pipeline)
 
     def __load(self, writeable=False):
         """
@@ -148,3 +142,10 @@ class Pipeline(object):
         self.__save()
         self._data = ReadonlyDict(self._data)
         portalocker.unlock(self.__fh)
+
+    @property
+    def dir(self):
+        """
+        Return the pipeline's data directory. This can be used to access assets.
+        """
+        return self._path + '/' + self._project + '/' + str(self._pipeline)

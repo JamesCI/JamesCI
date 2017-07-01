@@ -109,6 +109,7 @@ class Job(Pipeline):
         """
         self._data['jobs'][self._job][key] = value
 
+    @property
     def pipeline(self):
         """
         Return instance of the pipeline of this job.
@@ -120,7 +121,18 @@ class Job(Pipeline):
         """
         return Pipeline(self._path, self._project, self._pipeline)
 
-    def setStatus(self, status):
+    @property
+    def status(self):
+        """
+        Get the job's status
+        """
+        if 'meta' not in self or 'status' not in self['meta']:
+            return 'pending'
+        else:
+            return self['meta']['status']
+
+    @status.setter
+    def status(self, status):
         """
         Set the job's status.
 

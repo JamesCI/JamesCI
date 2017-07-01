@@ -46,7 +46,7 @@ def finish_job(status, exit=True):
         Wheter to exit after all processing has been done or not.
     """
     with job:
-        job.setStatus(status)
+        job.status = status
         job['meta']['end'] = int(time.time())
 
     if exit:
@@ -111,12 +111,12 @@ def main():
     # Note: Unbuffered I/O can't be used here due a bug in Python 3. See
     #       http://bugs.python.org/issue17404 for more information.
     global logfile
-    logfile = open(job.dir() + '/' + args.job + '.txt', 'w')
+    logfile = open(job.dir + '/' + args.job + '.txt', 'w')
 
     # Set the job's status to running, so the UI and other tools may be notified
     # and can view some data from the logs in live view.
     with job:
-        job.setStatus('running')
+        job.status = 'running'
         job['meta']['start'] = int(time.time())
 
     # Create a new shell environment, in which the job's commands can be
@@ -159,7 +159,7 @@ def main():
             git_commands.append('git clone --depth=' + str(git_clone_depth)
                                 + ' ' + git_repo_url + ' .')
             git_commands.append(
-                'git checkout ' + job.pipeline()['git']['revision'])
+                'git checkout ' + job.pipeline['git']['revision'])
 
             # By default all submodules will be initialized. However one may
             # disable this feature by setting the 'submodules' key in 'git' to
