@@ -35,7 +35,7 @@ import traceback
 import yaml
 
 
-def run_commands(output, commands):
+def run_commands(output, commands, metadata, fold=None, timer=True):
     """
     Run commands in the current working directory. The output of stdout and
     stderr will be written into file.
@@ -46,13 +46,37 @@ def run_commands(output, commands):
         Where to dump the output of the commands.
     commands: str | list
         Single command or list of commands to execute.
+    metadata: bool
+        Whether to include folds and timers into the output or not. If set to
+        False, the fold and timer parameters have no effect.
+    fold: str
+        If set to a string, the command's output will be folded with this label.
+        Note: If the command fails, the output will not be folded.
+    timer: bool
+        If set to true, the time of the executed commands will be measured and
+        added as metadata to the command.
     """
     # If commands is a single sting, convert it to a list with a single item, so
     # the below code can handle both types of input without much overhead.
     if isinstance(commands, str):
         commands = [commands]
 
-    for command in commands:
+    for index, command in enumerate(commands):
+        # If the command should be folded, generate a new label for this command
+        # and write the fold command into the output stream. James CI uses the
+        # same mechanism for folding as Travis CI does.
+        if metadata and fold is not None:
+            fold_label = fold + '.' + str(index) if len(commands) > 1 else fold
+            output.write('james_fold:start:' + fold_label + '\r')
+
+        # If the time of this command should be measured, generate a new timer
+        # ID, get the current time and write a new timer command into the output
+        # stream. James CI uses the same mechanism for timers as Travis CI does.
+        if metadata and timer:
+            timer_id = format(random.randint(0, 2**32), '08x')
+            timer_start = int(time.time() * 1000000000)
+            output.write('james_time:start:' + timer_id + '\r')
+
         # Write a line about the command to be executed to output and execute
         # the command. The output will be flushed before executing the command,
         # so the output file doesn't get corrupted.
@@ -73,6 +97,22 @@ def run_commands(output, commands):
                                       fg='red', style='bold') +
                          '\n\n')
             raise
+
+        # If the time of this command should be measured, get the current time,
+        # calculate the used time and write the timer's end command with meta-
+        # data to the output stream.
+        if metadata and timer:
+            timer_end = int(time.time() * 1000000000)
+            timer_delta = timer_end - timer_start
+            output.write('james_time:end:' + timer_id + ':start=' +
+                         str(timer_start) + ',end=' + str(timer_end) +
+                         ',duration=' + str(timer_delta) + '\r')
+
+        # Write the end of the folded section to output, if folding is enabled.
+        # Note: If the command fails, the folding will not be closed, so the UI
+        # will not collapse output of the failed command.
+        if metadata and fold is not None:
+            output.write('james_fold:end:' + fold_label + '\r')
 
 
 def finish_job(status, exit=True):
@@ -106,6 +146,9 @@ def main():
     argparser.add_argument('job', help='Name of the pipeline\'s job to run.')
     argparser.add_argument('--config', '-c', metavar='FILE', default='',
                            help='Configuration to use for the dispatcher.')
+    argparser.add_argument('--no-metadata', '-n', dest='metadata',
+                           action='store_false', default=True,
+                           help='Don\'t include folds and timers in output.')
 
     args = argparser.parse_args()
 
@@ -193,7 +236,7 @@ def main():
             # Execute all git commands. If an error occurs while executing them,
             # the job's status will be failed.
             try:
-                run_commands(logfile, git_commands)
+                run_commands(logfile, git_commands, args.metadata, fold='git')
             except subprocess.CalledProcessError:
                 finish_job('errored')
 
@@ -203,7 +246,7 @@ def main():
         try:
             for step in ['before_install', 'install', 'before_script']:
                 if step in job:
-                    run_commands(logfile, job[step])
+                    run_commands(logfile, job[step], args.metadata, fold=step)
         except subprocess.CalledProcessError:
             finish_job('errored')
 
@@ -213,7 +256,7 @@ def main():
         # distinguished from other steps in the output.
         try:
             logfile.write('\n')
-            run_commands(logfile, job['script'])
+            run_commands(logfile, job['script'], args.metadata)
             logfile.write('\n')
 
         except subprocess.CalledProcessError:
@@ -222,7 +265,8 @@ def main():
             # errored anyway later.
             if 'after_failed' in job:
                 try:
-                    run_commands(logfile, job['after_failed'])
+                    run_commands(logfile, job['after_failed'], args.metadata,
+                                 fold='after_failed')
                 except subprocess.CalledProcessError:
                     pass
 
@@ -236,7 +280,8 @@ def main():
         # reachable and execution will continue with the deploy steps.
         if 'after_success' in job:
             try:
-                run_commands(logfile, job['after_success'])
+                run_commands(logfile, job['after_success'], args.metadata,
+                             fold='after_success')
             except subprocess.CalledProcessError:
                 pass
 
@@ -244,7 +289,8 @@ def main():
         # the job will be marked as errored and the execution stops immediately.
         if 'before_deploy' in job:
             try:
-                run_commands(logfile, job['before_deploy'])
+                run_commands(logfile, job['before_deploy'], args.metadata,
+                             fold='before_deploy')
             except subprocess.CalledProcessError:
                 finish_job('errored')
 
@@ -252,7 +298,8 @@ def main():
         # job will be marked as failed and execution stops immediately.
         if 'deploy' in job:
             try:
-                run_commands(logfile, job['deploy'])
+                run_commands(logfile, job['deploy'], args.metadata,
+                             fold='deploy')
             except subprocess.CalledProcessError:
                 finish_job('failed')
 
@@ -263,7 +310,7 @@ def main():
         for step in ['after_deploy', 'after_script']:
             if step in job:
                 try:
-                    run_commands(logfile, job[step])
+                    run_commands(logfile, job[step], args.metadata, fold=step)
                 except subprocess.CalledProcessError:
                     pass
 
