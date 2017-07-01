@@ -81,6 +81,7 @@ class Pipeline(object):
         """
         self.__fh.seek(0)
         yaml.dump(self._data, self.__fh, default_flow_style=False)
+        self.__fh.truncate()
 
     def __contains__(self, key):
         """
