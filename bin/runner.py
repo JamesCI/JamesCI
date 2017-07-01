@@ -293,7 +293,10 @@ if __name__ == "__main__":
 
         # Add a trace to the job's logfile, if it has been opened already.
         if logfile is not None:
-            logfile.write('\n\nAn error occured in the runner.\n\n')
+            logfile.write('\n\n' +
+                          colors.color('An error occured in the runner.',
+                                       fg='red', style='bold') +
+                          '\n\n')
 
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback.print_exception(
