@@ -132,6 +132,18 @@ def main():
     with tempfile.TemporaryDirectory(dir=os.getcwd()) as path:
         os.chdir(path)
 
+        # If a prolog script is defined for the runner, run this script before
+        # any other step will be executed. This script may be used to print
+        # information about the used worker or install required dependencies.
+        # If an error occurs while executing this script, the job's status will
+        # be failed.
+        if 'runner' in config and 'prolog_script' in config['runner']:
+            try:
+                shell.run(config['runner']['prolog_script'], echo=False,
+                          failMessage='Runner\'s prolog script failed.')
+            except subprocess.CalledProcessError:
+                finish_job('errored')
+
         # Clone the git repository into the current working directory. By
         # default only the 50 latest commits will be cloned (shallow clone). If
         # depth is set to 0, the clone will be ignored entirely.

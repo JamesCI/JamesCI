@@ -56,7 +56,7 @@ class Shell(object):
         """
         self._env.update(env)
 
-    def run(self, commands):
+    def run(self, commands, echo=True, failMessage=None):
         """
         Run commands in the current working directory. The output of stdout and
         stderr will be written into file.
@@ -77,8 +77,9 @@ class Shell(object):
             # execute the command. The output will be flushed before executing
             # the command, so the output file doesn't get corrupted.
             try:
-                self._output.write('$ ' + command + '\n')
-                self._output.flush()
+                if echo:
+                    self._output.write('$ ' + command + '\n')
+                    self._output.flush()
                 subprocess.check_call([command], shell=True, env=self._env,
                                       stdout=self._output, stderr=self._output)
 
@@ -87,10 +88,12 @@ class Shell(object):
                 # info and the exit code to output. The exception will be re-
                 # raised if not deactivated, so the callee get's notified about
                 # it.
+                if not failMessage:
+                    failMessage = ('The command "' + command +
+                                   '" failed and exited with ' +
+                                   str(e.returncode) + '.')
                 self._output.write('\n' +
-                                   colors.color('The command "' + command +
-                                                '" failed and exited with ' +
-                                                str(e.returncode) + '.',
+                                   colors.color(failMessage,
                                                 fg='red', style='bold') +
                                    '\n\n')
                 raise
