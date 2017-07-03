@@ -23,10 +23,24 @@
 import argparse
 import configparser
 import git
+import jamesci
 import os
 import sys
 import time
 import yaml
+
+
+if __name__ == "__main__":
+    # First, set a custom exception handler. As this script usually runs inside
+    # the git post-reive hook, the user shouldn't see a full traceback, but a
+    # short error message should be just fine.
+    #
+    # Note: For development purposes the custom exception handler may be
+    #       disabled by setting the 'JAMESCI_DEBUG' variable in the environment.
+    if 'JAMESCI_DEBUG' not in os.environ:
+        eh = jamesci.ExceptionHandler
+        eh.header = 'Can\'t dispatch a new pipeline for James CI:'
+        sys.excepthook = eh.handler
 
 
 # Parse the command line arguments. If any of the arguments are invalid, or

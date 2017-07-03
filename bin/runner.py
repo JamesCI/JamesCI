@@ -261,6 +261,17 @@ def main():
 
 
 if __name__ == "__main__":
+    # First, set a custom exception handler. As this script usually runs inside
+    # the git post-reive hook, the user shouldn't see a full traceback, but a
+    # short error message should be just fine.
+    #
+    # Note: For development purposes the custom exception handler may be
+    #       disabled by setting the 'JAMESCI_DEBUG' variable in the environment.
+    if 'JAMESCI_DEBUG' not in os.environ:
+        eh = jamesci.ExceptionHandler
+        eh.header = 'Error while running job:'
+        sys.excepthook = eh.handler
+
     # Define two new global variables for the job and its logfile. These will be
     # initialized inside the 'main' method, but will be used by the exception
     # handler below, if initialized at the time of the crash.
