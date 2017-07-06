@@ -18,11 +18,13 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-[general]
-data_dir: /srv/www/james/data # Where to store the job-related data.
+general:
+  # Where to store the job-related data.
+  data_dir: /srv/www/james/data
 
-[git]
-url_template: "git@localhost:%(project)s.git"
+git:
+  url_template: "git@localhost:%(project)s.git"
 
-[runner]
-prolog_script = false # An optional script to run before the job.
+runner:
+  # An optional script to run before the job.
+  prolog_script: "false"

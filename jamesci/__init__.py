@@ -18,6 +18,7 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
+from jamesci.config import Config
 from jamesci.exception_handler import ExceptionHandler
 from jamesci.job import Job
 from jamesci.pipeline import Pipeline

@@ -20,14 +20,46 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-import argparse
-import configparser
 import git
 import jamesci
 import os
 import sys
 import time
 import yaml
+
+
+def parse_config():
+    """
+    Parse the command line arguments and configuration files.
+
+    This function parses all arguments passed to the exeecutable and an
+    additional configuration file to get the full configuration for this
+    invocation of the James CI dispatcher.
+
+    .. note::
+      If any of the arguments is invalid, or mandatory arguments are missing,
+      :py:meth:`.Config.parse_args` will print an error message and this script
+      will be executed immediately.
+
+    .. note::
+      This function does not handle any exceptions raised, as these will be
+      handled by the :py:class:`.ExceptionHandler` to print a pretty error
+      message to :py:data:`~sys.stderr`.
+
+
+    :return: The parsed configuration as read-only dictionary.
+    :rtype: ReadonlyDict
+    """
+    parser = jamesci.Config()
+    parser.add_argument('project',
+                        help='project name, i.e. repositorie\'s name')
+    parser.add_argument('revision',
+                        help='revision to be build by this pipeline')
+    parser.add_argument('--type', '-t', choices=['branch', 'tag'],
+                        metavar='TYPE', default='branch',
+                        help='type of the build, may be either branch or tag')
+
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
@@ -42,31 +74,12 @@ if __name__ == "__main__":
         eh.header = 'Can\'t dispatch a new pipeline for James CI:'
         sys.excepthook = eh.handler
 
-
-# Parse the command line arguments. If any of the arguments are invalid, or
-# mandatory arguments are missing, an error message will be printed by the
-# argparse parser and this script exited immediately.
-argparser = argparse.ArgumentParser()
-argparser.add_argument('project',
-                       help='Project name (i.e. the repositorie\'s name).')
-argparser.add_argument('revision',
-                       help='Git revision the jobs are launched for.')
-argparser.add_argument('--config', '-c', metavar='FILE', default='',
-                       help='Configuration to use for the dispatcher.')
-argparser.add_argument('--type', '-t', choices=['branch', 'tag'],
-                       metavar='TYPE', default='branch',
-                       help='Type of the build. May be either branch or tag.')
-
-args = argparser.parse_args()
-
-
-# Read the configuration file, where additional information like the data
-# directory or a handler to use is stored. The system wide configuration will be
-# used before the file passed by command line. If no configuration file could be
-# loaded, an error message will be printed and the script exited immediately.
-config = configparser.ConfigParser()
-if not config.read(['/etc/james-ci.conf', args.config]):
-    sys.exit('Could not load any configuration file.')
+    # Parse all command line arguments and the James CI configuration file. If
+    # a mandatory parameter is missing, or the configuration file couldn't be
+    # read or is invalid, the parse_config function will raise exceptions (which
+    # will be handled by the custom exception handler set above) or exits
+    # immediately. That means: no error handling is neccessary here.
+    config = parse_config()
 
 
 # Get the repository of the current working directory. As this command should be
@@ -83,7 +96,7 @@ try:
     # Get the contents of the James CI configuration file in the given revision.
     # Errors about invalid revisions and not available files will be handled
     # below.
-    pipeline_config = yaml.load(repository.tree(args.revision)
+    pipeline_config = yaml.load(repository.tree(config['revision'])
                                 ['.james-ci.yml'].data_stream)
 
 except git.exc.InvalidGitRepositoryError:
@@ -118,19 +131,19 @@ if ('meta' in pipeline_config or
 # Add metadata for this pipeline. This data will be used by the runner and UI
 # for providing additional information or management purposes.
 pipeline_config['meta'] = dict()
-pipeline_config['meta']['type'] = args.type
+pipeline_config['meta']['type'] = config['type']
 pipeline_config['meta']['created'] = int(time.time())
 
 if 'git' not in pipeline_config:
     pipeline_config['git'] = dict()
-pipeline_config['git']['revision'] = args.revision
+pipeline_config['git']['revision'] = config['revision']
 
 
 # Create a directory for the new pipeline. If this is the first job for a
 # project, the root directory for this project will be created and the initial
 # pipeline number be 1. There will be up to 3 retries, if a concurrent
 # post-receive creates the same pipeline number we'd like to use.
-project_dir = config['general']['data_dir'] + '/' + args.project
+project_dir = config['general']['data_dir'] + '/' + config['project']
 pipeline = 1
 retries = 3
 for i in range(retries):

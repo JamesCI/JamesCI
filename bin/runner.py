@@ -20,10 +20,7 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-import appdirs
-import argparse
 import colors
-import configparser
 import jamesci
 import os
 import subprocess
@@ -32,6 +29,38 @@ import tempfile
 import time
 import traceback
 import yaml
+
+
+def parse_config():
+    """
+    Parse the command line arguments and configuration files.
+
+    This function parses all arguments passed to the exeecutable and an
+    additional configuration file to get the full configuration for this
+    invocation of the James CI runner.
+
+    .. note::
+      If any of the arguments is invalid, or mandatory arguments are missing,
+      :py:meth:`.Config.parse_args` will print an error message and this script
+      will be executed immediately.
+
+    .. note::
+      This function does not handle any exceptions raised, as these will be
+      handled by the :py:class:`.ExceptionHandler` to print a pretty error
+      message to :py:data:`~sys.stderr`.
+
+
+    :return: The parsed configuration as read-only dictionary.
+    :rtype: ReadonlyDict
+    """
+    parser = jamesci.Config()
+    parser.add_argument('project',
+                        help='project name, i.e. repositorie\'s name')
+    parser.add_argument('pipeline', type=int,
+                        help='pipeline ID of the job to be run')
+    parser.add_argument('job', help='name of the job to be run')
+
+    return parser.parse_args()
 
 
 def finish_job(status, exit=True):
@@ -55,41 +84,14 @@ def finish_job(status, exit=True):
 
 
 def main():
-    # Parse the command line arguments. If any of the arguments are invalid, or
-    # mandatory arguments are missing, an error message will be printed by the
-    # argparse parser and this script exited immediately.
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument('project',
-                           help='Project name (i.e. the repositorie\'s name).')
-    argparser.add_argument('pipeline', type=int,
-                           help='Pipeline ID this job is run for.')
-    argparser.add_argument('job', help='Name of the pipeline\'s job to run.')
-    argparser.add_argument('--config', '-c', metavar='FILE', default='',
-                           help='Configuration to use for the dispatcher.')
-
-    args = argparser.parse_args()
-
-    # Read the configuration file, where additional information like the data
-    # directory or prolog and epilog scripts may be defined. The system wide
-    # configuration will be parsed first, an extra file in the user's home
-    # directory may be used by indiviudal users if using this script inter-
-    # actively. The file passed by command line will be parsed last and
-    # overwrites previously parsed settings. If no configuration file could be
-    # loaded at all, an error message will be printed and the script exited
-    # immediately.
-    config = configparser.ConfigParser()
-    if not config.read(['/etc/james-ci.conf',
-                        appdirs.user_config_dir('james-ci.conf'), args.config]):
-        sys.exit('Could not load any configuration file.')
-
     # Get the configuration for this job. If either the pipeline doesn't exist,
     # the configuration couldn't be parsed or the job's name is not present in
     # the configuration, an error message will be printed and the script exited
     # immediately.
     try:
         global job
-        job = jamesci.Job(config['general']['data_dir'],
-                          args.project, args.pipeline, args.job)
+        job = jamesci.Job(config.general['data_dir'],
+                          config['project'], config['pipeline'], config['job'])
 
     except FileNotFoundError:
         # Either the project name or the pipeline ID was invalid: A
@@ -103,7 +105,7 @@ def main():
     except KeyError:
         # The configuration file could be read and parsed, but it doesn't
         # contain a valid configuration for the given job.
-        sys.exit('Pipeline has no job named \'' + args.job + '\'.')
+        sys.exit('Pipeline has no job named \'' + config['job'] + '\'.')
 
     # Open a new file for the job's output. The file may exist before executing
     # the runner (e.g. information from a scheduler), but all previous contents
@@ -112,7 +114,7 @@ def main():
     # Note: Unbuffered I/O can't be used here due a bug in Python 3. See
     #       http://bugs.python.org/issue17404 for more information.
     global logfile
-    logfile = open(job.dir + '/' + args.job + '.txt', 'w')
+    logfile = open(job.dir + '/' + config['job'] + '.txt', 'w')
 
     # Set the job's status to running, so the UI and other tools may be notified
     # and can view some data from the logs in live view.
@@ -156,7 +158,7 @@ def main():
             # configuration file. After cloning the repository, the revision for
             # this pipeline will be checked out.
             git_repo_url = config.get('git', 'url_template',
-                                      vars={'project': args.project})
+                                      vars={'project': config['project']})
             git_commands.append('git clone --depth=' + str(git_clone_depth)
                                 + ' ' + git_repo_url + ' .')
             git_commands.append(
@@ -271,6 +273,13 @@ if __name__ == "__main__":
         eh = jamesci.ExceptionHandler
         eh.header = 'Error while running job:'
         sys.excepthook = eh.handler
+
+    # Parse all command line arguments and the James CI configuration file. If
+    # a mandatory parameter is missing, or the configuration file couldn't be
+    # read or is invalid, the parse_config function will raise exceptions (which
+    # will be handled by the custom exception handler set above) or exits
+    # immediately. That means: no error handling is neccessary here.
+    config = parse_config()
 
     # Define two new global variables for the job and its logfile. These will be
     # initialized inside the 'main' method, but will be used by the exception
