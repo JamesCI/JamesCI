@@ -96,6 +96,7 @@ setup(
         'GitPython',
         'portalocker',
         'PyYAML',
+        'setuptools',
     ],
     setup_requires=[
         'setuptools-git-version',

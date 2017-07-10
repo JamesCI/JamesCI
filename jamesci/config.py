@@ -59,8 +59,8 @@ class Config(argparse.ArgumentParser):
         Initialize the argument parser.
 
         .. note::
-          An argument for defining a custom configuration file will be added
-          before any other argument.
+          Arguments for defining a custom configuration file and getting the
+          version of James CI will be added before any other argument.
         """
         super().__init__(*args, **kwargs)
 
@@ -69,6 +69,12 @@ class Config(argparse.ArgumentParser):
         self.add_argument('--config', '-c', metavar='FILE',
                           type=argparse.FileType('r'),
                           help='custom configuration file to use')
+
+        # Add an argument for getting the version of the installed James CI
+        # utilities. The version number will be the same for all utilities and
+        # packages.
+        self.add_argument('--version', '-V', action='version',
+                          version='James CI ' + jamesci.__version__)
 
     @staticmethod
     def _openConfig(namespace):
