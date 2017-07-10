@@ -44,7 +44,8 @@ def parse_config():
     .. note::
       This function does not handle any exceptions raised, as these will be
       handled by the :py:class:`.ExceptionHandler` to print a pretty error
-      message to :py:data:`~sys.stderr`.
+      message to :py:data:`~sys.stderr`. For exceptions to be raised see
+      :py:meth:`.Config.parse_args`.
 
 
     :return: The parsed configuration as read-only dictionary.
@@ -58,8 +59,56 @@ def parse_config():
     parser.add_argument('--type', '-t', choices=['branch', 'tag'],
                         metavar='TYPE', default='branch',
                         help='type of the build, may be either branch or tag')
+    parser.add_argument('--force', '-f', default=False, action='store_true',
+                        help='exit with error if no pipeline configured')
 
     return parser.parse_args()
+
+
+def get_pipeline_config(revision):
+    """
+    Get the config file for the pipeline to run.
+
+    This function reads the pipeline's configuration in the specific revision.
+
+
+    :param str revision: The revision of the pipeline.
+    :return: The pipeline's configuration.
+    :rtype: dict
+
+    :raises git.exc.InvalidGitRepositoryError:
+      The current directory is no git repository. The dispatcher must be
+      executed in the repository's root.
+    :raises TypeError:
+      The repository is not a bare repository. The dispatcher needs to be run
+      inside the server-side bare repository.
+    :raises yaml.scanner.ScannerError:
+      The pipeline configuration in this revision is invalid and could not be
+      parsed.
+    :raises KeyError: This revision has no pipeline configuration file.
+    """
+    try:
+        repository = git.Repo()
+        if not repository.bare:
+            raise TypeError('Only bare repositories are supported. This '
+                            'command should NOT be executed in client-'
+                            'repositories.')
+
+        return yaml.load(repository.tree(revision)['.james-ci.yml'].data_stream)
+
+    except git.exc.InvalidGitRepositoryError as e:
+        # If the repository couldn't be opened, re-raise the exception with an
+        # appropriate error message.
+        e.message = 'current directory is no git repository'
+        raise e
+
+    except yaml.scanner.ScannerError as e:
+        # If the pipeline's YAML configuration file has an invalid syntax,
+        # change the filename in the exception before re-raising it. Otherwise
+        # the user might get confused about other files as the origin of this
+        # exception.
+        e.problem_mark.name = 'james-ci.yml'
+        raise e from e
 
 
 if __name__ == "__main__":
@@ -81,44 +130,20 @@ if __name__ == "__main__":
     # immediately. That means: no error handling is neccessary here.
     config = parse_config()
 
-
-# Get the repository of the current working directory. As this command should be
-# executed in the git post-receive hook, this will get the repository the jobs
-# should be run for. If either no repository could be opened or this is not a
-# bare repository, an error message will be printed and the script exited
-# immediately.
-try:
-    repository = git.Repo()
-    if not repository.bare:
-        sys.exit('Only bare repositories are supported. This command should '
-                 'NOT be executed in client-repositories.')
-
     # Get the contents of the James CI configuration file in the given revision.
-    # Errors about invalid revisions and not available files will be handled
-    # below.
-    pipeline_config = yaml.load(repository.tree(config['revision'])
-                                ['.james-ci.yml'].data_stream)
-
-except git.exc.InvalidGitRepositoryError:
-    # If the repository couldn't be opened, exit with an error message. This
-    # should usually happen, if this command is not executed within the
-    # directory of the repository.
-    sys.exit('Repository in current directory could not be opened.')
-
-except ValueError:
-    # Exit with an error message, if the given revision can't be resolved by the
-    # git repository.
-    sys.exit('Given revision could not be resolved.')
-
-except KeyError:
-    # If the repository doesn't contain a configuration file for James CI in
-    # this revision, simply skip execution.
-    sys.exit(0)
-
-except yaml.scanner.ScannerError:
-    # Exit with an error message, if the James CI configuration file could not
-    # be parsed.
-    sys.exit('Could not parse the configuration file for James CI.')
+    # Most of the exceptions will be ignored and handled by the the custom
+    # exception handler set above.
+    try:
+        pipeline_config = get_pipeline_config(config['revision'])
+    except KeyError:
+        # If the repository doesn't contain a configuration file for James CI in
+        # this revision and force-mode is not anabled simply skip execution.
+        # This gives the ability to simply enable James CI for all repositories
+        # on the server regardless if they use it or not to reduce maintenance
+        # overhead.
+        if not config['force']:
+            sys.exit(0)
+        raise
 
 
 # Check for 'meta' key in pipeline configuration. This key must not be defined
