@@ -26,18 +26,6 @@ import yaml
 import jamesci.readonly
 
 
-class NoConfigFileFoundError(Exception):
-    """
-    Exception indicating no configuration file could be found.
-    """
-
-    def __init__(self):
-        """
-        Initialize the base exception and set an appropriate message.
-        """
-        super().__init__('no configuration file could be found')
-
-
 class Config(argparse.ArgumentParser):
     """
     Parse command line arguments and configuration files.
@@ -89,7 +77,7 @@ class Config(argparse.ArgumentParser):
         :return: Opened file handle for configuration file.
         :rtype: io.TextIOWrapper
 
-        :raises NoConfigFileFoundError: No configuration file has been found.
+        :raises FileNotFoundError: No configuration file has been found.
         """
         # If the user defined a configuration file in the arguments yet, this
         # has been already opened by the the argparser. If the defined file
@@ -107,7 +95,7 @@ class Config(argparse.ArgumentParser):
 
         # If no configuration file could be found at all, an exception will be
         # thrown.
-        raise NoConfigFileFoundError
+        raise FileNotFoundError('no configuration file could be found')
 
     def parse_args(self, *args, **kwargs):
         """
