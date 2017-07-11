@@ -20,10 +20,10 @@
 
 import appdirs
 import argparse
+import jamesci
 import os
+import types
 import yaml
-
-import jamesci.readonly
 
 
 class Config(argparse.ArgumentParser):
@@ -110,9 +110,16 @@ class Config(argparse.ArgumentParser):
           For all parameters and exceptions of this function, see
           :py:meth:`argparse.ArgumentParser.parse_args`.
 
+        .. warning::
+          Although this function returns a :py:class:`~.types.MappingProxyType`,
+          this can't protect nested dictionaries. Please not that one should not
+          change the contents of the returned dictionary, as the configuration
+          is read-only. If changes are required, add additional arguments or
+          values in the configuration file.
+
 
         :return: The parsed configuration.
-        :rtype: ReadonlyDict
+        :rtype: types.MappingProxyType(dict)
         """
         # Read the arguments from command line. The Namespace class of argp will
         # be converted into a dictionary, so there's a uniform way to access the
@@ -128,6 +135,9 @@ class Config(argparse.ArgumentParser):
             args.update(yaml.load(fh))
         del args['config']
 
-        # Convert argp into a readonly dictionary, so that an exception will be
-        # thrown if someone tries to modify the configuration.
-        return jamesci.readonly.ReadonlyDict(args)
+        # Convert argp into a readonly dictionary by using the MappingProxyType
+        # class, so that an exception will be raised if someone tries to modify
+        # the configuration.
+        #
+        # Note: This only protects first-level access but not nested dicts!
+        return types.MappingProxyType(args)
