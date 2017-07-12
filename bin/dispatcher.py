@@ -41,12 +41,6 @@ def parse_config():
       :py:meth:`.Config.parse_args` will print an error message and this script
       will be executed immediately.
 
-    .. note::
-      This function does not handle any exceptions raised, as these will be
-      handled by the :py:class:`.ExceptionHandler` to print a pretty error
-      message to :py:data:`~sys.stderr`. For exceptions to be raised see
-      :py:meth:`.Config.parse_args`.
-
 
     :return: The parsed configuration as read-only dictionary.
     :rtype: ReadonlyDict
