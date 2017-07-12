@@ -65,16 +65,17 @@ def parse_config():
     return parser.parse_args()
 
 
-def get_pipeline_config(revision):
+def open_repository(revision):
     """
-    Get the config file for the pipeline to run.
+    Open the git repository in the current working directory.
 
-    This function reads the pipeline's configuration in the specific revision.
+    This function opens the git repository in the current working directory and
+    returns the commit object for `revision`.
 
 
     :param str revision: The revision of the pipeline.
-    :return: The pipeline's configuration.
-    :rtype: dict
+    :return: Commit object of the pipeline's revision.
+    :rtype: git.Commit
 
     :raises git.exc.InvalidGitRepositoryError:
       The current directory is no git repository. The dispatcher must be
@@ -82,10 +83,6 @@ def get_pipeline_config(revision):
     :raises TypeError:
       The repository is not a bare repository. The dispatcher needs to be run
       inside the server-side bare repository.
-    :raises yaml.scanner.ScannerError:
-      The pipeline configuration in this revision is invalid and could not be
-      parsed.
-    :raises KeyError: This revision has no pipeline configuration file.
     """
     try:
         repository = git.Repo()
@@ -93,14 +90,33 @@ def get_pipeline_config(revision):
             raise TypeError('Only bare repositories are supported. This '
                             'command should NOT be executed in client-'
                             'repositories.')
-
-        return yaml.load(repository.tree(revision)['.james-ci.yml'].data_stream)
+        return repository.commit(revision)
 
     except git.exc.InvalidGitRepositoryError as e:
         # If the repository couldn't be opened, re-raise the exception with an
         # appropriate error message.
         e.message = 'current directory is no git repository'
         raise e
+
+
+def get_pipeline_config(revision):
+    """
+    Get the config file for the pipeline to run.
+
+    This function reads the pipeline's configuration in the specific revision.
+
+
+    :param git.Commit commit: The commit of the pipeline.
+    :return: The pipeline's configuration.
+    :rtype: dict
+
+    :raises yaml.scanner.ScannerError:
+      The pipeline configuration in this revision is invalid and could not be
+      parsed.
+    :raises KeyError: This revision has no pipeline configuration file.
+    """
+    try:
+        return yaml.load(commit.tree['.james-ci.yml'].data_stream)
 
     except yaml.scanner.ScannerError as e:
         # If the pipeline's YAML configuration file has an invalid syntax,
@@ -134,7 +150,8 @@ if __name__ == "__main__":
     # Most of the exceptions will be ignored and handled by the the custom
     # exception handler set above.
     try:
-        pipeline_config = get_pipeline_config(config['revision'])
+        commit = open_repository(config['revision'])
+        pipeline_config = get_pipeline_config(commit)
     except KeyError:
         # If the repository doesn't contain a configuration file for James CI in
         # this revision and force-mode is not anabled simply skip execution.
