@@ -51,6 +51,22 @@ class ExceptionHandler(object):
     """
 
     @classmethod
+    def _print_exc(cls, exception):
+        """
+        Print the short message of the exception to :py:obj:`sys.stderr`.
+
+
+        :param Exception exception: The exception to print.
+        """
+        # Print the exception and, if a cause is available, the cause of this
+        # exception. Causes will be printed recursively, until all exceptions
+        # have been printed.
+        print('{}: {}'.format(type(exception).__name__, exception),
+              file=sys.stderr)
+        if exception.__cause__:
+            cls._print_exc(exception.__cause__)
+
+    @classmethod
     def handler(cls, exception_type, exception, traceback):
         """
         Exception handler to be used as :py:func:`sys.excepthook`. An optional
@@ -66,4 +82,4 @@ class ExceptionHandler(object):
             print(colors.color(cls.header, fg='red', style='bold'),
                   file=sys.stderr)
             print('', file=sys.stderr)
-        print(exception, file=sys.stderr)
+        cls._print_exc(exception)
