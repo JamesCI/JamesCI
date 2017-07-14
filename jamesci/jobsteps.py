@@ -24,8 +24,12 @@ class JobSteps(object):
     A container for all job steps.
 
     .. note::
-      You may access all job steps via the attribute of the step's name. Valid
-      keys may be obtained by :py:attr:`steps`.
+      You may access all job steps as :py:class:`tuple` via the attribute of the
+      step's name. Valid keys may be obtained by :py:attr:`steps`.
+
+    .. note::
+      Once initialized, all attributes of this class are read-only and can't be
+      changed anymore.
     """
 
     def __init__(self, data):
@@ -42,7 +46,47 @@ class JobSteps(object):
             commands = data.get(step, list())
             if not isinstance(commands, list):
                 commands = [data[step]]
-            setattr(self, step, commands)
+            setattr(self, step, tuple(commands))
+
+        # Mark this instance as initialized to make it read-only. In combination
+        # with the steps saved as tuple, this ensures nobody can change a step's
+        # command-list, nor replacing the whole step.
+        self._initialized = True
+
+    def __delattr__(self, name):
+        """
+        Delete attribute `name` in this class.
+
+
+        :param name: The attribute to be deleted.
+
+        :raises TypeError: After :py:meth:`__init__` has finished, the instance
+          is read-only and attributes must not be altered in any way anymore.
+        """
+        # If the initialization of this class has been finished, attributes must
+        # not be deleted anymore.
+        if hasattr(self, '_initialized'):
+            raise TypeError("'" + self.__class__.__name__ +
+                            "' object does not support item deletion")
+        super().__delattr__(name, value)
+
+    def __setattr__(self, name, value):
+        """
+        Set attribute `name` with `value` in this class.
+
+
+        :param name: The attribute to be set.
+        :param value: The attribute's value.
+
+        :raises TypeError:  After :py:meth:`__init__` has finished, the instance
+          is read-only and attributes must not be altered in any way anymore.
+        """
+        # If the initialization of this class has been finished, attributes must
+        # not be set anymore.
+        if hasattr(self, '_initialized'):
+            raise TypeError("'" + self.__class__.__name__ +
+                            "' object does not support item assignment")
+        super().__setattr__(name, value)
 
     def dump(self):
         """
@@ -61,7 +105,7 @@ class JobSteps(object):
         for step in self.steps:
             commands = getattr(self, step)
             if len(commands) > 0:
-                ret[step] = commands if len(commands) > 1 else commands[0]
+                ret[step] = list(commands) if len(commands) > 1 else commands[0]
         return ret
 
     @property
