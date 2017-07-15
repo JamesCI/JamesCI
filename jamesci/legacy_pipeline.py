@@ -24,7 +24,7 @@ import yaml
 from jamesci.readonly import ReadonlyDict
 
 
-class Pipeline(object):
+class LegacyPipeline(object):
     """
     Managing a pipeline.
 

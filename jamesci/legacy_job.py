@@ -18,11 +18,11 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-from jamesci.pipeline import Pipeline
+from jamesci.legacy_pipeline import LegacyPipeline
 from jamesci.status import Status
 
 
-class Job(Pipeline):
+class LegacyJob(LegacyPipeline):
     """
     Managing a job.
 

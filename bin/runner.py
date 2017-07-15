@@ -90,8 +90,8 @@ def main():
     # immediately.
     try:
         global job
-        job = jamesci.Job(config.general['data_dir'],
-                          config['project'], config['pipeline'], config['job'])
+        job = jamesci.LegacyJob(config.general['data_dir'], config['project'],
+                                config['pipeline'], config['job'])
 
     except FileNotFoundError:
         # Either the project name or the pipeline ID was invalid: A
