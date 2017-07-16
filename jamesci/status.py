@@ -21,16 +21,27 @@
 import enum
 
 
+@enum.unique
 class Status(enum.IntEnum):
     """
-    Status enum class for jobs and pipelines.
+    This enum class will be used for defining the status of a
+    :py:class:`~.Pipeline` or :py:class:`~.Job`. Multiple statuses may be
+    compared by their value.
+
+    .. note::
+      The minimum of a list of statuses will be the *worst* status of the list.
+      However, if the list has a status of :py:attr:`created`,
+      :py:attr:`pending` or :py:attr:`running`, these will have priority,
+      indicating not all jobs have finished yet.
     """
 
-    pending = 0
-    running = 1
-    errored = 2
-    failed = 3
-    success = 4
+    created = enum.auto()
+    pending = enum.auto()
+    running = enum.auto()
+    canceled = enum.auto()
+    errored = enum.auto()
+    failed = enum.auto()
+    success = enum.auto()
 
     def __str__(self):
         """
