@@ -19,7 +19,7 @@
 #
 
 
-class JobSteps(dict):
+class Steps(dict):
     """
     A container for all job steps.
 
