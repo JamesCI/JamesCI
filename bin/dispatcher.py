@@ -124,7 +124,7 @@ def get_pipeline_config(revision):
         # the user might get confused about other files as the origin of this
         # exception.
         e.problem_mark.name = PIPELINE_CONFIG_NAME
-        raise e from e
+        raise e
 
 
 if __name__ == "__main__":
