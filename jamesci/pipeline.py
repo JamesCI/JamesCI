@@ -18,13 +18,14 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-import jamesci.job
-import jamesci.job_base
 import time
 import types
 
+from .job import Job
+from .job_base import JobBase
 
-class Pipeline(jamesci.job_base.JobBase):
+
+class Pipeline(JobBase):
     """
     This class helps managing pipelines. It imports the pipeline's configuration
     and handles all neccessary error checks.
@@ -53,8 +54,7 @@ class Pipeline(jamesci.job_base.JobBase):
         self._jobs = dict()
         for name, conf in data['jobs'].items():
             try:
-                self._jobs[name] = jamesci.job.Job(conf, self,
-                                                   with_meta=with_meta)
+                self._jobs[name] = Job(conf, self, with_meta=with_meta)
             except Exception as e:
                 raise ImportError("failed to load job '{}'".format(name)) from e
 

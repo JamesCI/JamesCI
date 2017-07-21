@@ -18,11 +18,13 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-from .config import Config
-from .exception_handler import ExceptionHandler
-from .legacy_job import LegacyJob
-from .legacy_pipeline import LegacyPipeline
-from .pipeline import Pipeline
-from .shell import Shell
-from .status import Status
-from .version import __version__
+import pkg_resources
+
+
+# Set the version string for this module. It will be gathered from setuptools,
+# which itself got it from this git. If the version from git is used without
+# installation, the version will be 'development version'.
+try:
+    __version__ = 'v' + pkg_resources.get_distribution('JamesCI').version
+except pkg_resources.DistributionNotFound:
+    __version__ = 'development version'

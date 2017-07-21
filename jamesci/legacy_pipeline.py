@@ -21,7 +21,7 @@
 import portalocker
 import yaml
 
-from jamesci.readonly import ReadonlyDict
+from .readonly import ReadonlyDict
 
 
 class LegacyPipeline(object):

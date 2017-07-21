@@ -18,8 +18,8 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-from jamesci.legacy_pipeline import LegacyPipeline
-from jamesci.status import Status
+from .legacy_pipeline import LegacyPipeline
+from .status import Status
 
 
 class LegacyJob(LegacyPipeline):

@@ -20,10 +20,11 @@
 
 import appdirs
 import argparse
-import jamesci
 import os
 import types
 import yaml
+
+from .version import __version__ as jamesci_version
 
 
 class Config(argparse.ArgumentParser):
@@ -62,7 +63,7 @@ class Config(argparse.ArgumentParser):
         # utilities. The version number will be the same for all utilities and
         # packages.
         self.add_argument('--version', '-V', action='version',
-                          version='James CI ' + jamesci.__version__)
+                          version='James CI ' + jamesci_version)
 
     @staticmethod
     def _openConfig(namespace):

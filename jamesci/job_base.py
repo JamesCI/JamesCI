@@ -19,8 +19,9 @@
 #
 
 import collections
-import jamesci.steps
 import types
+
+from .steps import Steps
 
 
 class JobBase(object):
@@ -49,7 +50,7 @@ class JobBase(object):
         # overhead, as most objects will not be modified but just a single ones.
         self._env = data.get('env')
         self._git = data.get('git')
-        self._steps = jamesci.steps.Steps(data)
+        self._steps = Steps(data)
 
         # Set a reference to the parent namespace. If one is set, its values
         # will be used whenever this one doesn't have a specific attribute set.

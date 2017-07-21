@@ -18,11 +18,11 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-import jamesci.job_base
-import jamesci.status
+from .job_base import JobBase
+from .status import Status
 
 
-class Job(jamesci.job_base.JobBase):
+class Job(JobBase):
     """
     This class helps managing jobs. It imports the job's configuration and
     handles all neccessary error checks.
@@ -57,13 +57,13 @@ class Job(jamesci.job_base.JobBase):
         # of any of the required fields, but an exception will be thrown if a
         # key is not available.
         if with_meta:
-            self._status = jamesci.status.Status[data['meta']['status']]
+            self._status = Status[data['meta']['status']]
 
         # If no meta-data should be imported from the provided configuration,
         # initialize the meta-data with default values. The initial status of a
         # job will be 'created'.
         else:
-            self._status = jamesci.status.Status.created
+            self._status = Status.created
 
     def dump(self):
         """
