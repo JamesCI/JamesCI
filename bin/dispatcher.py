@@ -28,6 +28,12 @@ import time
 import yaml
 
 
+PIPELINE_CONFIG_NAME = '.james-ci.yml'
+"""
+Name of the in-repository pipeline configuration file.
+"""
+
+
 def parse_config():
     """
     Parse the command line arguments and configuration files.
@@ -110,14 +116,14 @@ def get_pipeline_config(revision):
     :raises KeyError: This revision has no pipeline configuration file.
     """
     try:
-        return yaml.load(commit.tree['.james-ci.yml'].data_stream)
+        return yaml.load(commit.tree[PIPELINE_CONFIG_NAME].data_stream)
 
     except yaml.scanner.ScannerError as e:
         # If the pipeline's YAML configuration file has an invalid syntax,
         # change the filename in the exception before re-raising it. Otherwise
         # the user might get confused about other files as the origin of this
         # exception.
-        e.problem_mark.name = 'james-ci.yml'
+        e.problem_mark.name = PIPELINE_CONFIG_NAME
         raise e from e
 
 
