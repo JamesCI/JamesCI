@@ -24,6 +24,7 @@ from jamesci.config import Config
 from jamesci.exception_handler import ExceptionHandler
 from jamesci.legacy_job import LegacyJob
 from jamesci.legacy_pipeline import LegacyPipeline
+from jamesci.pipeline import Pipeline
 from jamesci.shell import Shell
 from jamesci.status import Status
 
