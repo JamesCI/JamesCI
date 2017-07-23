@@ -31,16 +31,20 @@ class Pipeline(JobBase):
     and handles all neccessary error checks.
     """
 
-    def __init__(self, data, with_meta=False, revision=None, contact=None):
+    def __init__(self, data, with_meta=False):
         """
+        .. warning::
+          If `with_meta` is set to :py:data:`False`, this constructor does
+          **NOT** initialize all attributes. It shall not be called directly.
+          Use :py:meth:`new` for creating a new pipeline instead.
+
+
         :param dict data: Dict containing the pipeline's configuration. May be
           imported from either the repository's `.james-ci.yml` or a pipeline's
           `pipeline.yml` file.
-        :param bool with_meta: Whether to load metadata from `data`. Should be
-          set to :py:obj:`False` when creating a new pipeline in the dispatcher.
-        :param str revision: Revision to checkout for the pipeline.
-        :param str contact: E-Mail address of the committer (e.g. to send him a
-          message about the pipeline's status after all jobs run).
+        :param bool with_meta: Whether to load metadata from `data`. Only
+          :py:meth:`new` should set this parameter to :py:data:`False` for
+          creating a new :py:class:`~.Pipeline`.
         """
         # Initialize the parent class, which imports the common keys for
         # pipelines and jobs.
@@ -67,20 +71,35 @@ class Pipeline(JobBase):
             self._contact = data['meta']['contact']
             self._revision = data['meta']['revision']
 
-        # If no meta-data should be imported from the provided configuration,
-        # initialize the meta-data. The created time of the pipeline will be set
+    @classmethod
+    def new(cls, data, revision, contact):
+        """
+        Create a new pipeline.
+
+
+        :param dict data: Dict containing the pipeline's configuration. Should
+          be imported from the repository's `.james-ci.yml` file.
+        :param str revision: Revision to checkout for the pipeline.
+        :param str contact: E-Mail address of the committer (e.g. to send him a
+          message about the pipeline's status after all jobs run).
+
+        :return: The new pipeline.
+        :rtype: Pipeline
+        """
+        # Create a new pipeline with the provided data. The meta-data will not
+        # be initialized, as the in-repository configuration file doesn't
+        # contain any meta-data.
+        pipeline = cls(data, with_meta=False)
+
+        # Initialize the meta-data. The created time of the pipeline will be set
         # to the current UNIX timestamp, the revision and contact data to the
         # value of the passed parameters.
-        else:
-            # If with_meta is False, additional parameters are required. Check
-            # if they are defined.
-            assert contact
-            assert revision
+        pipeline._created = int(time.time())
+        pipeline._contact = contact
+        pipeline._revision = revision
 
-            # Initialize all meta-data attributes.
-            self._created = int(time.time())
-            self._contact = contact
-            self._revision = revision
+        # Return the freshly created pipeline. Caution: it's hot!
+        return pipeline
 
     def dump(self):
         """
