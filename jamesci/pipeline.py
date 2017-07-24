@@ -34,12 +34,18 @@ class Pipeline(JobBase):
     and handles all neccessary error checks.
     """
 
-    def __init__(self, data, project_wd, pipeline_id=None, with_meta=False):
+    CONFIG_FILE = 'pipeline.yml'
+    """
+    Name of the pipeline's configuration file.
+    """
+
+    def __init__(self, data, project_wd, pipeline_id=None, with_meta=True):
         """
         .. warning::
           If `with_meta` is set to :py:data:`False`, this constructor does
           **NOT** initialize all attributes. It shall not be called directly.
-          Use :py:meth:`new` for creating a new pipeline instead.
+          Use :py:meth:`new` for creating a new pipeline or :py:meth:`load` to
+          load existing ones instead.
 
 
         :param dict data: Dict containing the pipeline's configuration. May be
@@ -96,7 +102,6 @@ class Pipeline(JobBase):
         :param str revision: Revision to checkout for the pipeline.
         :param str contact: E-Mail address of the committer (e.g. to send him a
           message about the pipeline's status after all jobs run).
-
         :return: The new pipeline.
         :rtype: Pipeline
         """
@@ -114,6 +119,25 @@ class Pipeline(JobBase):
 
         # Return the freshly created pipeline. Caution: it's hot!
         return pipeline
+
+    @classmethod
+    def load(cls, project_wd, pipeline_id):
+        """
+        Load an existing pipeline from the pipeline's working directory.
+
+
+        :param str project_wd: The working directory of the project, i.e. the
+          path where all pipelines of a specific project will be stored.
+        :param int pipeline_id: The ID of the pipeline to load.
+        :return: The loaded pipeline.
+        :rtype: Pipeline
+        """
+        # Get the path for the pipeline's configuration file.
+        path = os.path.join(cls.__pwd(project_wd, pipeline_id), cls.CONFIG_FILE)
+
+        # Open the configuration file for the given pipeline and parse its
+        # contents. Its values will be used to construct a new Pipeline object.
+        return cls(yaml.load(open(path)), project_wd, pipeline_id=pipeline_id)
 
     def dump(self):
         """
@@ -175,7 +199,7 @@ class Pipeline(JobBase):
         for i in range(3):
             with contextlib.suppress(FileExistsError):
                 pipeline_id = self.__get_new_id()
-                os.makedirs(self.__get_pwd(pipeline_id))
+                os.makedirs(self.__pwd(self._pwd, pipeline_id))
                 self._id = pipeline_id
                 return
 
@@ -196,7 +220,7 @@ class Pipeline(JobBase):
         # Dump the configuration of this pipeline as YAML in a configuration
         # file placed inside the pipeline's working directory.
         yaml.dump(self.dump(),
-                  open(os.path.join(self.pwd, 'pipeline.yml'), 'w'),
+                  open(os.path.join(self.pwd, self.CONFIG_FILE), 'w'),
                   default_flow_style=False)
 
     @property
@@ -236,13 +260,16 @@ class Pipeline(JobBase):
         """
         return types.MappingProxyType(self._jobs)
 
-    def __get_pwd(self, pipeline_id):
+    @staticmethod
+    def __pwd(project_wd, pipeline_id):
         """
+        :param str project_wd: The working directory of the project, i.e. the
+          path where all pipelines of a specific project will be stored.
         :param int pipeline_id: The ID of the pipeline.
         :return: The pipeline's working directory.
         :rtype: str
         """
-        return os.path.join(self._pwd, str(pipeline_id))
+        return os.path.join(project_wd, str(pipeline_id))
 
     @property
     def pwd(self):
@@ -256,7 +283,7 @@ class Pipeline(JobBase):
         :return: The pipeline's working directory.
         :rtype: str
         """
-        return self.__get_pwd(self._id) if self._id else None
+        return self.__pwd(self._pwd, self._id) if self._id else None
 
     @property
     def revision(self):
