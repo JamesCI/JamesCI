@@ -24,7 +24,6 @@ import git
 import jamesci
 import os
 import sys
-import time
 import yaml
 
 
@@ -50,9 +49,6 @@ def parse_config():
                         help='project name, i.e. repositorie\'s name')
     parser.add_argument('revision',
                         help='revision to be build by this pipeline')
-    parser.add_argument('--type', '-t', choices=['branch', 'tag'],
-                        metavar='TYPE', default='branch',
-                        help='type of the build, may be either branch or tag')
     parser.add_argument('--force', '-f', default=False, action='store_true',
                         help='exit with error if no pipeline configured')
 
@@ -117,7 +113,7 @@ def get_pipeline_config(revision):
         # change the filename in the exception before re-raising it. Otherwise
         # the user might get confused about other files as the origin of this
         # exception.
-        e.problem_mark.name = 'james-ci.yml'
+        e.problem_mark.name = '.james-ci.yml'
         raise e from e
 
 
@@ -140,12 +136,16 @@ if __name__ == "__main__":
     # immediately. That means: no error handling is neccessary here.
     config = parse_config()
 
-    # Get the contents of the James CI configuration file in the given revision.
-    # Most of the exceptions will be ignored and handled by the the custom
-    # exception handler set above.
+    # Get the contents of the James CI configuration file in the given revision
+    # and create a new pipeline with its contents. Most of the exceptions will
+    # be ignored and handled by the the custom exception handler set above.
     try:
         commit = open_repository(config['revision'])
-        pipeline_config = get_pipeline_config(commit)
+        pipeline = jamesci.Pipeline.new(get_pipeline_config(commit),
+                                        os.path.join(config['general']['root'],
+                                                     config['project']),
+                                        config['revision'],
+                                        commit.committer.email)
     except KeyError:
         # If the repository doesn't contain a configuration file for James CI in
         # this revision and force-mode is not anabled simply skip execution.
@@ -156,52 +156,7 @@ if __name__ == "__main__":
             sys.exit(0)
         raise
 
-
-# Check for 'meta' key in pipeline configuration. This key must not be defined
-# neither for the pipeline itself, nor the jobs, as this key is reserved for
-# management purposes.
-if ('meta' in pipeline_config or
-        any('meta' in job for job in pipeline_config['jobs'])):
-    sys.exit('The \'meta\' key must not used in the configuration.')
-
-# Add metadata for this pipeline. This data will be used by the runner and UI
-# for providing additional information or management purposes.
-pipeline_config['meta'] = dict()
-pipeline_config['meta']['type'] = config['type']
-pipeline_config['meta']['created'] = int(time.time())
-
-if 'git' not in pipeline_config:
-    pipeline_config['git'] = dict()
-pipeline_config['git']['revision'] = config['revision']
-
-
-# Create a directory for the new pipeline. If this is the first job for a
-# project, the root directory for this project will be created and the initial
-# pipeline number be 1. There will be up to 3 retries, if a concurrent
-# post-receive creates the same pipeline number we'd like to use.
-project_dir = config['general']['data_dir'] + '/' + config['project']
-pipeline = 1
-retries = 3
-for i in range(retries):
-    if os.path.exists(project_dir):
-        pipelines = os.listdir(project_dir)
-        if pipelines:
-            pipeline = max(map(int, pipelines)) + 1
-
-    try:
-        # Try tp create a new directory for this pipeline.
-        pipeline_dir = project_dir + '/' + str(pipeline)
-        os.makedirs(pipeline_dir)
-        break
-
-    except FileExistsError:
-        # Another process created this pieline concurrently. Retry to create a
-        # pipeline until the limit is reached.
-        if (i == retries - 1):
-            sys.exit('Failed to create a new pipeline.')
-        continue
-
-# Store the pipeline's configuration file in the pipeline's root directory. This
-# file will be used by the runner and UI.
-yaml.dump(pipeline_config, open(pipeline_dir + '/pipeline.yml', 'w'),
-          default_flow_style=False)
+    # Save the pipeline to the pipeline's configuration file. This also will
+    # assign a new ID for the pipeline and makes the pipeline's working
+    # directory.
+    pipeline.save()

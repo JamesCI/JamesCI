@@ -18,8 +18,10 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
+import os
 import time
 import types
+import yaml
 
 from .job import Job
 from .job_base import JobBase
@@ -31,7 +33,7 @@ class Pipeline(JobBase):
     and handles all neccessary error checks.
     """
 
-    def __init__(self, data, with_meta=False):
+    def __init__(self, data, project_wd, pipeline_id=None, with_meta=False):
         """
         .. warning::
           If `with_meta` is set to :py:data:`False`, this constructor does
@@ -42,13 +44,22 @@ class Pipeline(JobBase):
         :param dict data: Dict containing the pipeline's configuration. May be
           imported from either the repository's `.james-ci.yml` or a pipeline's
           `pipeline.yml` file.
+        :param str project_wd: The working directory of the project, i.e. the
+          path where all pipelines of a specific project will be stored.
+        :param None,int pipeline_id: The ID of this pipeline.
         :param bool with_meta: Whether to load metadata from `data`. Only
           :py:meth:`new` should set this parameter to :py:data:`False` for
           creating a new :py:class:`~.Pipeline`.
+
+        :raises ImportError: Failed to import a job.
         """
         # Initialize the parent class, which imports the common keys for
         # pipelines and jobs.
         super().__init__(data)
+
+        # Import the pipeline's specific data.
+        self._id = pipeline_id
+        self._pwd = project_wd
 
         # Import the pipeline's jobs. First, the list of defined stages will be
         # loaded, then the jobs will be imported. If importing any job fails,
@@ -72,13 +83,15 @@ class Pipeline(JobBase):
             self._revision = data['meta']['revision']
 
     @classmethod
-    def new(cls, data, revision, contact):
+    def new(cls, data, project_wd, revision, contact):
         """
         Create a new pipeline.
 
 
         :param dict data: Dict containing the pipeline's configuration. Should
           be imported from the repository's `.james-ci.yml` file.
+        :param str project_wd: The working directory of the project, i.e. the
+          path where all pipelines of a specific project will be stored.
         :param str revision: Revision to checkout for the pipeline.
         :param str contact: E-Mail address of the committer (e.g. to send him a
           message about the pipeline's status after all jobs run).
@@ -89,7 +102,7 @@ class Pipeline(JobBase):
         # Create a new pipeline with the provided data. The meta-data will not
         # be initialized, as the in-repository configuration file doesn't
         # contain any meta-data.
-        pipeline = cls(data, with_meta=False)
+        pipeline = cls(data, project_wd, with_meta=False)
 
         # Initialize the meta-data. The created time of the pipeline will be set
         # to the current UNIX timestamp, the revision and contact data to the
@@ -122,6 +135,71 @@ class Pipeline(JobBase):
         ret['jobs'] = {name: job.dump() for name, job in self._jobs.items()}
         return ret
 
+    def __get_new_id(self):
+        """
+        :return: A new ID for this pipeline.
+        :rtype: int
+        """
+        # If the working directory for all pipelines already exists, get the
+        # next available ID depending on the contents of this directory. The ID
+        # to be returned will be the maximum ID found in the directory
+        # incremented by one.
+        if os.path.exists(self._pwd):
+            pipelines = os.listdir(self._pwd)
+            if pipelines:
+                return max(map(int, pipelines)) + 1
+
+        # If the working directory for pipelines doesn't exist yet, or is empty,
+        # return the first available ID 1.
+        return 1
+
+    def __assign_new_id(self):
+        """
+        Assign a new ID for this pipeline.
+
+        .. note::
+          This method will not only assign the new ID, but also makes a new
+          working directory for this pipeline to reserve this ID. to avoid two
+          pipelines with the same ID when more than one process is running at
+          the moment.
+
+
+        :raises OSError: Failed to assign a new ID to this pipeline due race
+          conditions with other processes.
+        """
+        # Try up to three times to assign a new ID to this pipeline. This needs
+        # to be done to catch race conditions, where another process may have
+        # assigned the ID to its pipeline while this one tries to assign the
+        # same ID.
+        for i in range(3):
+            try:
+                pipeline_id = self.__get_new_id()
+                os.makedirs(self.__get_pwd(pipeline_id))
+                self._id = pipeline_id
+                return
+            except FileExistsError:
+                pass
+
+        # If all tries have failed to assign an ID for this pipeline, raise an
+        # exception.
+        raise OSError('other processes block ID assignment')
+
+    def save(self):
+        """
+        Save the pipeline configuration to the configuration file in the
+        pipeline's working directory.
+        """
+        # If no ID is assigned to this pipeline yet, require a new ID for this
+        # pipeline first.
+        if self._id is None:
+            self.__assign_new_id()
+
+        # Dump the configuration of this pipeline as YAML in a configuration
+        # file placed inside the pipeline's working directory.
+        yaml.dump(self.dump(),
+                  open(os.path.join(self.pwd, 'pipeline.yml'), 'w'),
+                  default_flow_style=False)
+
     @property
     def contact(self):
         """
@@ -139,6 +217,14 @@ class Pipeline(JobBase):
         return self._created
 
     @property
+    def id():
+        """
+        :return: The pipeline's id.
+        :rtype: None, int
+        """
+        return self._id
+
+    @property
     def jobs(self):
         """
         .. note::
@@ -150,6 +236,28 @@ class Pipeline(JobBase):
         :rtype: types.MappingProxyType(dict)
         """
         return types.MappingProxyType(self._jobs)
+
+    def __get_pwd(self, pipeline_id):
+        """
+        :param int pipeline_id: The ID of the pipeline.
+        :return: The pipeline's working directory.
+        :rtype: str
+        """
+        return os.path.join(self._pwd, str(pipeline_id))
+
+    @property
+    def pwd(self):
+        """
+        .. note::
+          If no ID is assigned to the pipeline yet, the working directory of the
+          pipeline doesn't exist yet, thus the working directory of this
+          pipeline will be :py:data:`None`.
+
+
+        :return: The pipeline's working directory.
+        :rtype: str
+        """
+        return self.__get_pwd(self._id) if self._id else None
 
     @property
     def revision(self):
