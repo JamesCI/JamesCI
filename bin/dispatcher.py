@@ -123,6 +123,18 @@ def get_pipeline_config(revision):
         raise e
 
 
+def skip_commit(commit):
+    """
+    :param git.Commit commit:
+    :return: Whether a pipeline for `commit` should be skipped or not.
+    :rtype: bool
+    """
+    # Commits that have [ci skip] or [skip ci] anywhere in the commit message
+    # should be ignored.
+    return (commit.message.find('[ci skip]') >= 0 or
+            commit.message.find('[skip ci]') >= 0)
+
+
 if __name__ == "__main__":
     # First, set a custom exception handler. As this script usually runs inside
     # the git post-reive hook, the user shouldn't see a full traceback, but a
@@ -142,11 +154,16 @@ if __name__ == "__main__":
     # immediately. That means: no error handling is neccessary here.
     config = parse_config()
 
+    # Get the commit for this pipeline and check if a pipeline should be run for
+    # this commit. If not, exit the dispatcher immediately without any error.
+    commit = open_repository(config['revision'])
+    if skip_commit(commit):
+        sys.exit(0)
+
     # Get the contents of the James CI configuration file in the given revision
     # and create a new pipeline with its contents. Most of the exceptions will
     # be ignored and handled by the the custom exception handler set above.
     try:
-        commit = open_repository(config['revision'])
         pipeline = jamesci.Pipeline.new(get_pipeline_config(commit),
                                         os.path.join(config['general']['root'],
                                                      config['project']),

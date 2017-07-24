@@ -162,3 +162,10 @@ different from Travis CI, where lists will be used!*
 env:
   FOO: "Hello World"
 ```
+
+
+## Skipping a build
+
+By default the dispatcher will create a new pipeline for each commit passed as
+parameter. However, you may skip a particular commit by adding `[ci skip]` or
+`[skip ci]` to the git commit message.
