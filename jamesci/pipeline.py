@@ -18,6 +18,7 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
+import contextlib
 import os
 import time
 import types
@@ -172,13 +173,11 @@ class Pipeline(JobBase):
         # assigned the ID to its pipeline while this one tries to assign the
         # same ID.
         for i in range(3):
-            try:
+            with contextlib.suppress(FileExistsError):
                 pipeline_id = self.__get_new_id()
                 os.makedirs(self.__get_pwd(pipeline_id))
                 self._id = pipeline_id
                 return
-            except FileExistsError:
-                pass
 
         # If all tries have failed to assign an ID for this pipeline, raise an
         # exception.
