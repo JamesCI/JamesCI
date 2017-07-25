@@ -27,17 +27,17 @@ class ExceptionHandler(object):
     Simple exception handler, writing only a short error message to
     :py:data:`~sys.stderr`.
 
-    Usually the James CI utilities will be executed inside git `post-receive`
-    hook, where writing a full traceback to the user's console may be very
-    cryptic and not understandable for him. This exception handler limits the
-    output to the short desciptive message of the exception, so the user is
-    informed about the error and administrators can evaluate the bug at a later
-    time.
+    Usually the James CI utilities will be executed inside of the git
+    `post-receive` hook, where writing a full traceback to the user's console
+    may be very cryptic and not understandable for him. This exception handler
+    limits the output to the short desciptive message of the exception, so the
+    user is informed about the error and administrators can evaluate the bug at
+    a later time.
 
     In addition this gives the ability to raise exceptions for basic errors like
     :py:exc:`KeyError` for keys not found in the config without catching them
-    all, but just let :py:meth:`handler` print a short error message about this
-    error.
+    all, but just let the :py:meth:`handler` print a short error message about
+    this error.
 
     .. note::
       Whenever there is a reason to catch an exception, e.g. to execute some
@@ -53,7 +53,8 @@ class ExceptionHandler(object):
     @classmethod
     def _print_exc(cls, exception):
         """
-        Print the short message of the exception to :py:obj:`sys.stderr`.
+        Print the short message of the exception to :py:obj:`~sys.stderr`. The
+        cause of the `exception` will be printed recursively.
 
 
         :param Exception exception: The exception to print.
