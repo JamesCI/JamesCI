@@ -39,14 +39,27 @@ class Pipeline(JobBase):
     Name of the pipeline's configuration file.
     """
 
-    def __init__(self, data, with_meta=True, pipeline_wd=None,
-                 pipeline_id=None):
+    def __init__(self, project_wd, pipeline_id):
         """
-        .. warning::
-          If `with_meta` is set to :py:data:`False`, this constructor does
-          **NOT** initialize all attributes. It shall not be called directly.
-          Use :py:class:`PipelineConstructor` for creating a new pipeline or
-          :py:meth:`load` to load existing ones instead.
+        Load an existing pipeline from the project's working directory.
+
+
+        :param str project_wd: The working directory of the project, i.e. the
+          path where all pipelines of a specific project will be stored.
+        :param int pipeline_id: The ID of the pipeline to load.
+        """
+        # Import the pipeline's specific data. This will be set only once and
+        # doesn't change when the pipeline is reloaded.
+        self._id = pipeline_id
+        self._wd = self._get_wd(project_wd, pipeline_id)
+
+        # Load the configuration for the given pipeline from the pipeline's
+        # configuration file in the pipeline's working directory.
+        self._load()
+
+    def _import(self, data, with_meta=True):
+        """
+        Import the contents of `data` into this pipeline.
 
 
         :param dict data: Dict containing the pipeline's configuration. May be
@@ -55,18 +68,10 @@ class Pipeline(JobBase):
         :param bool with_meta: Whether to load metadata from `data`. Only
           :py:class:`PipelineConstructor` should set this parameter to
           :py:data:`False` for creating a new :py:class:`~.Pipeline`.
-        :param None,str pipeline_wd: The working directory of the pipeline.
-        :param None,int pipeline_id: The ID of this pipeline.
-
-        :raises ImportError: Failed to import a job.
         """
-        # Initialize the parent class, which imports the common keys for
+        # Load data in the parent class, which imports the common keys for
         # pipelines and jobs.
-        super().__init__(data)
-
-        # Import the pipeline's specific data.
-        self._id = pipeline_id
-        self._wd = pipeline_wd
+        super()._import(data)
 
         # Import the pipeline's jobs. First, the list of defined stages will be
         # loaded, then the jobs will be imported. If importing any job fails,
@@ -109,25 +114,13 @@ class Pipeline(JobBase):
         """
         return os.path.join(pipeline_wd, cls._CONFIG_FILE)
 
-    @classmethod
-    def load(cls, project_wd, pipeline_id):
+    def _load(self):
         """
-        Load an existing pipeline from the project's working directory.
-
-
-        :param str project_wd: The working directory of the project, i.e. the
-          path where all pipelines of a specific project will be stored.
-        :param int pipeline_id: The ID of the pipeline to load.
-        :return: The loaded pipeline.
-        :rtype: Pipeline
+        Load the contents of the pipline's configuration file.
         """
-        # Get the pipeline's working directory.
-        pipeline_wd = cls._get_wd(project_wd, pipeline_id)
-
-        # Open the configuration file for the given pipeline and parse its
-        # contents. Its values will be used to construct a new Pipeline object.
-        return cls(yaml.load(open(cls._config_file(pipeline_wd))),
-                   pipeline_wd=pipeline_wd, pipeline_id=pipeline_id)
+        # Import the data of the pipeline's configuration file. The current
+        # contents of this pipeline will be overwritten.
+        self._import(yaml.load(open(self._config_file(self._wd))))
 
     def dump(self):
         """
@@ -246,7 +239,9 @@ class PipelineConstructor(Pipeline):
         # Create a new pipeline with the provided data. The meta-data will not
         # be initialized, as the in-repository configuration file doesn't
         # contain any meta-data.
-        super().__init__(data, with_meta=False)
+        self._import(data, with_meta=False)
+        self._id = None
+        self._wd = None
 
         # Initialize the meta-data. The created time of the pipeline will be set
         # to the current UNIX timestamp, the revision and contact data to the

@@ -32,15 +32,22 @@ class JobBase(object):
     each job.
     """
 
-    def __init__(self, data, parent=None):
+    def __init__(self, parent=None):
+        """
+        :param JobBase parent: An optional parent namespace used when this one
+          doesn't provide a specific attribute.
+        """
+        # Set a reference to the parent namespace. If one is set, its values
+        # will be used whenever this one doesn't have a specific attribute set.
+        self._parent = parent
+
+    def _import(self, data):
         """
         Get the common configuration options of `data` and store them into local
         attributes.
 
 
         :param dict data: The configuration to be loaded.
-        :param JobBase parent: An optional parent namespace used when this one
-          doesn't provide a specific attribute.
         """
         # Import the environment- and git-configurations as dictionary. Steps
         # will be handled by the James CI Steps class, as these need special
@@ -51,10 +58,6 @@ class JobBase(object):
         self._env = data.get('env')
         self._git = data.get('git')
         self._steps = Steps(data)
-
-        # Set a reference to the parent namespace. If one is set, its values
-        # will be used whenever this one doesn't have a specific attribute set.
-        self._parent = parent
 
     def dump(self):
         """

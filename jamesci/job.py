@@ -42,7 +42,8 @@ class Job(JobBase):
         # namespace, so the env, git and steps attributes of the pipeline will
         # be used whenever the job has no individual configurations for these
         # attributes set.
-        super().__init__(data, parent=pipeline)
+        super().__init__(parent=pipeline)
+        super()._import(data)
 
         # Import the job-specific configurations, except meta-data, as it will
         # not be loaded in any situation.
