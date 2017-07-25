@@ -28,7 +28,7 @@ class Job(JobBase):
     handles all neccessary error checks.
     """
 
-    def __init__(self, data, pipeline, with_meta=False):
+    def __init__(self, data, pipeline, with_meta=True):
         """
         :param dict data: Dict containing the job's configuration. This will be
           an item of the `jobs` key in the configuration passed to the pipeline.
