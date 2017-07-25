@@ -45,16 +45,16 @@ class Pipeline(JobBase):
         .. warning::
           If `with_meta` is set to :py:data:`False`, this constructor does
           **NOT** initialize all attributes. It shall not be called directly.
-          Use :py:meth:`new` for creating a new pipeline or :py:meth:`load` to
-          load existing ones instead.
+          Use :py:class:`PipelineConstructor` for creating a new pipeline or
+          :py:meth:`load` to load existing ones instead.
 
 
         :param dict data: Dict containing the pipeline's configuration. May be
           imported from either the repository's `.james-ci.yml` or a pipeline's
           `pipeline.yml` file.
         :param bool with_meta: Whether to load metadata from `data`. Only
-          :py:meth:`new` should set this parameter to :py:data:`False` for
-          creating a new :py:class:`~.Pipeline`.
+          :py:class:`PipelineConstructor` should set this parameter to
+          :py:data:`False` for creating a new :py:class:`~.Pipeline`.
         :param None,str pipeline_wd: The working directory of the pipeline.
         :param None,int pipeline_id: The ID of this pipeline.
 
@@ -88,37 +88,6 @@ class Pipeline(JobBase):
             self._created = data['meta']['created']
             self._contact = data['meta']['contact']
             self._revision = data['meta']['revision']
-
-    @classmethod
-    def new(cls, data, revision, contact):
-        """
-        Create a new pipeline.
-
-
-        :param dict data: Dict containing the pipeline's configuration. Should
-          be imported from the repository's `.james-ci.yml` file.
-        :param str project_wd: The working directory of the project, i.e. the
-          path where all pipelines of a specific project will be stored.
-        :param str revision: Revision to checkout for the pipeline.
-        :param str contact: E-Mail address of the committer (e.g. to send him a
-          message about the pipeline's status after all jobs run).
-        :return: The new pipeline.
-        :rtype: Pipeline
-        """
-        # Create a new pipeline with the provided data. The meta-data will not
-        # be initialized, as the in-repository configuration file doesn't
-        # contain any meta-data.
-        pipeline = cls(data, with_meta=False)
-
-        # Initialize the meta-data. The created time of the pipeline will be set
-        # to the current UNIX timestamp, the revision and contact data to the
-        # value of the passed parameters.
-        pipeline._created = int(time.time())
-        pipeline._contact = contact
-        pipeline._revision = revision
-
-        # Return the freshly created pipeline. Caution: it's hot!
-        return pipeline
 
     @staticmethod
     def _get_wd(project_wd, pipeline_id):
@@ -181,79 +150,14 @@ class Pipeline(JobBase):
         ret['jobs'] = {name: job.dump() for name, job in self._jobs.items()}
         return ret
 
-    @staticmethod
-    def __get_new_id(self, project_wd):
+    def _save(self):
         """
-        :param project_wd str: The working directory of the project, i.e. the
-          path where all pipelines of a specific project will be stored.
-        :return: A new ID for this pipeline.
-        :rtype: int
-        """
-        # If the working directory for all pipelines already exists, get the
-        # next available ID depending on the contents of this directory. The ID
-        # to be returned will be the maximum ID found in the directory
-        # incremented by one.
-        if os.path.exists(project_wd):
-            pipelines = os.listdir(project_wd)
-            if pipelines:
-                return max(map(int, pipelines)) + 1
-
-        # If the working directory for pipelines doesn't exist yet, or is empty,
-        # return the first available ID 1.
-        return 1
-
-    def __assign_new_id(self, project_wd):
-        """
-        Assign a new ID for this pipeline.
-
-        .. note::
-          This method will not only assign the new ID, but also makes a new
-          working directory for this pipeline to reserve this ID. to avoid two
-          pipelines with the same ID when more than one process is running at
-          the moment.
-
-
-        :param project_wd str: The working directory of the project, i.e. the
-          path where all pipelines of a specific project will be stored.
-
-        :raises OSError: Failed to assign a new ID to this pipeline due race
-          conditions with other processes.
-        """
-        # Try up to three times to assign a new ID to this pipeline. This needs
-        # to be done to catch race conditions, where another process may have
-        # assigned the ID to its pipeline while this one tries to assign the
-        # same ID.
-        for i in range(3):
-            with contextlib.suppress(FileExistsError):
-                pipeline_id = self.__get_new_id(project_wd)
-                pipeline_wd = self._get_wd(project_wd, pipeline_id)
-                os.makedirs(pipeline_wd)
-                self._id = pipeline_id
-                self._wd = pipeline_wd
-                return
-
-        # If all tries have failed to assign an ID for this pipeline, raise an
-        # exception.
-        raise OSError('other processes block ID assignment')
-
-    def save(self, project_wd):
-        """
-        Save the pipeline configuration to the configuration file in the
+        Save the pipeline's configuration to the configuration file in the
         pipeline's working directory.
-
-
-        :param project_wd str: The working directory of the project, i.e. the
-          path where all pipelines of a specific project will be stored.
         """
-        # If no ID is assigned to this pipeline yet, require a new ID for this
-        # pipeline first.
-        if self._id is None:
-            self.__assign_new_id(project_wd)
-
         # Dump the configuration of this pipeline as YAML in a configuration
         # file placed inside the pipeline's working directory.
-        yaml.dump(self.dump(),
-                  open(self._config_file(self._wd), 'w'),
+        yaml.dump(self.dump(), open(self._config_file(self._wd), 'w'),
                   default_flow_style=False)
 
     @property
@@ -316,3 +220,119 @@ class Pipeline(JobBase):
         :rtype: str
         """
         return self._wd
+
+
+class PipelineConstructor(Pipeline):
+    """
+    This class is an extended version of the :py:class:`Pipeline` class, to
+    create new pipelines (e.g. in the dispatcher). In addition to the regular
+    :py:class:`Pipeline` class, which expects an existing configuration file in
+    the pipline's working directory, this class has the ability to create this
+    file and initialize the pipeline's meta-data.
+
+    The new created class is writeable, so the creator may alter some of its
+    attributes. When all changes have been done, the pipeline should be created
+    by calling :py:meth:`create`.
+    """
+
+    def __init__(self, data, revision, contact):
+        """
+        :param dict data: Dict containing the pipeline's configuration. Should
+          be imported from the repository's `.james-ci.yml` file.
+        :param str revision: Revision to checkout for the pipeline.
+        :param str contact: E-Mail address of the committer (e.g. to send him a
+          message about the pipeline's status after all jobs run).
+        """
+        # Create a new pipeline with the provided data. The meta-data will not
+        # be initialized, as the in-repository configuration file doesn't
+        # contain any meta-data.
+        super().__init__(data, with_meta=False)
+
+        # Initialize the meta-data. The created time of the pipeline will be set
+        # to the current UNIX timestamp, the revision and contact data to the
+        # value of the passed parameters.
+        self._created = int(time.time())
+        self._contact = contact
+        self._revision = revision
+
+    def _assign_id(self, project_path):
+        """
+        Assign a new ID for this pipeline.
+
+        .. note::
+          This method will not only assign the new ID, but also makes a new
+          working directory for this pipeline to reserve the ID, to avoid two
+          pipelines with the same ID when more than one process is running at
+          the same time.
+
+
+        :param project_path str: The working directory of the project, i.e. the
+          path where all pipelines of a specific project will be stored.
+
+        :raises AttributeError: An ID is already assigned to the pipeline, which
+          must not be altered.
+        :raises OSError: Failed to assign a new ID to this pipeline due race
+          conditions with other processes.
+        """
+        # The following helper function will be used to get a new ID to be used.
+        # An extra function will be used for better structuring.
+        def new_id():
+            """
+            :return: A new ID for this pipeline.
+            :rtype: int
+            """
+            # If the working directory for all pipelines already exists, get the
+            # next available ID depending on the contents of this directory. The
+            # ID to be returned will be the maximum ID found in the directory
+            # incremented by one.
+            if os.path.exists(project_path):
+                pipelines = os.listdir(project_path)
+                if pipelines:
+                    return max(map(int, pipelines)) + 1
+
+            # If the working directory for pipelines doesn't exist yet, or is
+            # empty, return the first available ID 1.
+            return 1
+
+        # Check if the pipeline has already an ID assigned. The pipeline's ID
+        # must not be changed once set.
+        if self._id:
+            raise AttributeError('pipeline has already an ID assigned')
+
+        # Try up to three times to assign a new ID to this pipeline. This needs
+        # to be done to catch race conditions, where another process may have
+        # assigned the ID to its pipeline while this one tries to assign the
+        # same ID.
+        for i in range(3):
+            with contextlib.suppress(FileExistsError):
+                # Get a new ID and the corresponding working directory, which
+                # depends on the new pipeline ID.
+                pipeline_id = new_id()
+                pipeline_wd = self._get_wd(project_path, pipeline_id)
+
+                # Try to assign this ID. If no exception is raised, the new ID
+                # and working directory will be stored in protected attributes.
+                os.makedirs(pipeline_wd)
+                self._id = pipeline_id
+                self._wd = pipeline_wd
+                return
+
+        # If all tries have failed to assign an ID for this pipeline, raise an
+        # exception.
+        raise OSError('other processes block ID assignment')
+
+    def create(self, project_path):
+        """
+        Create the pipeline in the `project_path`.
+
+
+        :param str project_path: The working directory of the project, i.e. the
+          path where all pipelines of a specific project will be stored.
+        """
+        # First, the new pipeline needs an ID assigned, otherwise no working
+        # directory (and thus no pipeline configuration file) could be created.
+        self._assign_id(project_path)
+
+        # Save the pipeline's configuration to the pipeline's configuration file
+        # in the pipeline's working directory.
+        self._save()

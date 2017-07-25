@@ -164,11 +164,9 @@ if __name__ == "__main__":
     # and create a new pipeline with its contents. Most of the exceptions will
     # be ignored and handled by the the custom exception handler set above.
     try:
-        pipeline = jamesci.Pipeline.new(get_pipeline_config(commit),
-                                        os.path.join(config['general']['root'],
-                                                     config['project']),
-                                        config['revision'],
-                                        commit.committer.email)
+        pipeline = jamesci.PipelineConstructor(get_pipeline_config(commit),
+                                               config['revision'],
+                                               commit.committer.email)
     except KeyError:
         # If the repository doesn't contain a configuration file for James CI in
         # this revision and force-mode is not anabled simply skip execution.
@@ -182,4 +180,4 @@ if __name__ == "__main__":
     # Save the pipeline to the pipeline's configuration file. This also will
     # assign a new ID for the pipeline and makes the pipeline's working
     # directory.
-    pipeline.save()
+    pipeline.create(os.path.join(config['general']['root'], config['project']))
