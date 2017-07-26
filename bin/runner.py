@@ -20,15 +20,81 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-import colors
 import jamesci
 import os
 import subprocess
 import sys
 import tempfile
 import time
-import traceback
 import yaml
+
+
+class Tee(object):
+    """
+    This class will be used to duplicate an input stream to the job's logfile.
+    """
+
+    def __init__(self, job, stream):
+        """
+        :param Job job: The job the runner is running for.
+        :param io.TextIOWrapper stream: The stream to be duplicated.
+        """
+        self.file = open(job.logfile, 'a')
+        self.stream = stream
+
+    def __del__(self):
+        """
+        Close the job's logfile.
+        """
+        self.file.close()
+
+    def write(self, data):
+        """
+        Write `data` to the job's logfile and the duplicated stream.
+
+
+        :param data: Data to be written.
+        """
+        self.file.write(data)
+        self.stream.write(data)
+
+
+class ExceptionHandler(jamesci.ExceptionHandler):
+    """
+    This exception handler is specialized for the runner and will set the job's
+    status to :py:attr:`~.Status.errored`, if an exception is not catched.
+    """
+
+    job = None
+    """
+    Reference to the job that's handled by the runner.
+    """
+
+    @classmethod
+    def handler(cls, exception_type, exception, traceback):
+        """
+        In addition to the parent handler, this one will set the job's status to
+        :py:attr:`~.Status.errored` and duplicate the error messages to the
+        job's logfile, if a :py:attr:`job` has been set.
+
+
+        :param type exception_type: Type of the exception.
+        :param Exception exception: The thrown exception.
+        :param traceback traceback: The exception's traceback.
+        """
+        # If a job has been defined before the exception handler got called, set
+        # the job's status to errored.
+        if cls.job:
+            job.status = jamesci.Status.errored
+            sys.stderr = tee = Tee(cls.job, sys.stderr)
+
+            # Append two newlines to the job's logfile as spacer between the
+            # job's output and the error message.
+            tee.file.write('\n\n')
+
+        # Call the 'real' exception handler, that will print the error messages
+        # to stderr (and the job's log file, if defined above).
+        super().handler(exception_type, exception, traceback)
 
 
 def parse_config():
@@ -89,9 +155,9 @@ def main():
     # the configuration, an error message will be printed and the script exited
     # immediately.
     try:
-        global job
         job = jamesci.LegacyJob(config.general['data_dir'], config['project'],
                                 config['pipeline'], config['job'])
+        eh.job = job
 
     except FileNotFoundError:
         # Either the project name or the pipeline ID was invalid: A
@@ -270,7 +336,7 @@ if __name__ == "__main__":
     # Note: For development purposes the custom exception handler may be
     #       disabled by setting the 'JAMESCI_DEBUG' variable in the environment.
     if 'JAMESCI_DEBUG' not in os.environ:
-        eh = jamesci.ExceptionHandler
+        eh = ExceptionHandler
         eh.header = 'Error while running job:'
         sys.excepthook = eh.handler
 
@@ -281,36 +347,6 @@ if __name__ == "__main__":
     # immediately. That means: no error handling is neccessary here.
     config = parse_config()
 
-    # Define two new global variables for the job and its logfile. These will be
-    # initialized inside the 'main' method, but will be used by the exception
-    # handler below, if initialized at the time of the crash.
-    job = None
-    logfile = None
-
-    # Try to execute the 'main' method. This extra method has to be used to
-    # caugh any exceptions that is not caught by 'main', so the jobs state can
-    # be set to errored, indicating a problem with the runner occured.
-    try:
-        main()
-
-    except Exception:
-        # Update the job's status and do the job post-processing. The job will
-        # not be exited after the post-processing, so additional error-data can
-        # be appended to the job's logfile.
-        if job is not None:
-            finish_job(jamesci.Status.errored, exit=False)
-
-        # Add a trace to the job's logfile, if it has been opened already.
-        if logfile is not None:
-            logfile.write('\n\n' +
-                          colors.color('An error occured in the runner.',
-                                       fg='red', style='bold') +
-                          '\n\n')
-
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_exception(
-                exc_type, exc_value, exc_traceback, file=logfile)
-
-        # Re-raise the exception. This will cause the python interpreter to
-        # send a similar message to stderr and abort the execution.
-        raise
+    # Run the 'main' method. This is a legacy from the previous exception
+    # handler.
+    main()
