@@ -18,6 +18,8 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
+import os
+
 from .job_base import JobBase
 from .status import Status
 
@@ -28,8 +30,9 @@ class Job(JobBase):
     handles all neccessary error checks.
     """
 
-    def __init__(self, data, pipeline, with_meta=True):
+    def __init__(self, name, data, pipeline, with_meta=True):
         """
+        :param str name: Name of this job.
         :param dict data: Dict containing the job's configuration. This will be
           an item of the `jobs` key in the configuration passed to the pipeline.
         :param Pipeline pipeline: Reference to the job's pipeline.
@@ -50,6 +53,7 @@ class Job(JobBase):
         #
         # The data will not be converted to read-only objects to reduce the
         # overhead, as most objects will not be modified but just a single one.
+        self._name = name
         self._pipeline = pipeline
         self._stage = self._load_stage(data)
 
@@ -116,6 +120,22 @@ class Job(JobBase):
 
         # If all checks passed, return the loaded stage.
         return stage
+
+    @property
+    def logfile(self):
+        """
+        :return: Path of the job's logfile.
+        :rtype: str
+        """
+        return os.path.join(self.pipeline.wd, self._name + '.txt')
+
+    @property
+    def name(self):
+        """
+        :return: The job's name.
+        :rtype: str
+        """
+        return self._name
 
     @property
     def pipeline(self):

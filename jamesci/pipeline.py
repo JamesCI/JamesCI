@@ -81,7 +81,7 @@ class Pipeline(JobBase):
         self._jobs = dict()
         for name, conf in data['jobs'].items():
             try:
-                self._jobs[name] = Job(conf, self, with_meta=with_meta)
+                self._jobs[name] = Job(name, conf, self, with_meta=with_meta)
             except Exception as e:
                 raise ImportError("failed to load job '{}'".format(name)) from e
 
