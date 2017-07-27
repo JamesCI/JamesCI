@@ -129,7 +129,7 @@ class Pipeline(JobBase):
         """
         return open(os.path.join(self._wd, self._CONFIG_FILE), mode)
 
-    def _load(self, writeable=False):
+    def _load(self, unlock=True, writeable=False):
         """
         Load the contents of the pipline's configuration file.
 
@@ -139,6 +139,8 @@ class Pipeline(JobBase):
           lock the file exclusively.
 
 
+        :param bool unlock: Whether to unlock the file after loading the
+          pipeline's configuration.
         :param bool writeable: Whether the loaded contents should be writeable.
           If set to :py:data:`True`, write-protected attributes will be
           writeable.
@@ -157,7 +159,8 @@ class Pipeline(JobBase):
         self._import(yaml.load(self._fh), writeable=writeable)
 
         # Unlock the file-handle, so other processes may write to this file.
-        portalocker.unlock(self._fh)
+        if unlock:
+            portalocker.unlock(self._fh)
 
     def dump(self):
         """
@@ -180,7 +183,7 @@ class Pipeline(JobBase):
         ret['jobs'] = {name: job.dump() for name, job in self._jobs.items()}
         return ret
 
-    def _save(self):
+    def _save(self, unlock=True):
         """
         Save the pipeline's configuration to the configuration file in the
         pipeline's working directory.
@@ -189,6 +192,10 @@ class Pipeline(JobBase):
           This method will lock the pipeline's configuration file for exclusive
           access, i.e. this call will block, if a concurrent process did already
           lock the file for shared or exclusive access.
+
+
+        :param bool unlock: Whether to unlock the file after dumping the
+          pipeline's configuration into it.
         """
         # Lock the configuration file for exclusive access while writing to
         # prevent concurrent processes reading from this file, as this may lead
@@ -205,6 +212,59 @@ class Pipeline(JobBase):
 
         # Unlock the file-handle, so other processes may read from and write to
         # this file.
+        if unlock:
+            portalocker.unlock(self._fh)
+
+    def __enter__(self):
+        """
+        Enter the runtime context related to this pipeline. This will lock the
+        pipeline exclusively and reloads its configuration in writeable.
+
+        .. warning::
+          The pipeline will be locked exclusively, that means no concurrent
+          process may access the pipeline's configuration - neither for reading
+          nor writing. Long-running commands inside the context may block
+          concurrent proccesses!
+
+
+        :return: A writeable instance of this pipeline.
+        :rtype: Pipeline
+        """
+        # Lock the configuration file of the pipeline exclusively before
+        # entering the context. In addition to the regular lock in _load, this
+        # one ensures that other processes can't change the configuration after
+        # this process loaded the pipeline's configuration.
+        portalocker.lock(self._fh, portalocker.LOCK_EX)
+
+        # Load the pipeline's configuration in writeable mode, so attributes of
+        # this pipeline may be changed inside the context. The lock will NOT be
+        # unlocked after loading the configuration (see above).
+        self._load(unlock=False, writeable=True)
+
+        # Return a reference to this pipeline instance, which has writeable jobs
+        # now.
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Exit the runtime context related to this pipeline. If no exception
+        caused exiting the context, the configuration of this pipeline will be
+        saved to the pipeline's configuration file and unlock the pipeline.
+        """
+        # If an exception has been raised (and not catched) inside of the
+        # context, the configuration should not be saved to the pipeline's
+        # configuration file, as it might be corrupted.
+        if exc_type:
+            return
+
+        # Save the pipeline's configuration to the configuration file. The
+        # pipeline will be reloaded in write-protected mode, ensuring one can't
+        # modify the pipeline's attributes after leaving the context.
+        self._save(unlock=False)
+        self._load(unlock=False)
+
+        # Unlock the pipeline, so other processes may load the pipeline's
+        # configuration or enter a context.
         portalocker.unlock(self._fh)
 
     @property

@@ -121,6 +121,27 @@ class Job(JobBase):
         # If all checks passed, return the loaded stage.
         return stage
 
+    def __enter__(self):
+        """
+        Enter the runtime context related to the job's pipeline and return a
+        reference to this job in the pipeline's context.
+
+        .. seealso::
+          See the :py:meth:`~.Pipeline.__enter__` method of
+          :py:class:`~.Pipeline` for further information.
+
+
+        :return: The writeable job instance in the pipeline's context.
+        :rtype: WriteableJob
+        """
+        return self._pipeline.__enter__().jobs[self._name]
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Exit the runtime context related to the job's pipeline.
+        """
+        self._pipeline.__exit__(exc_type, exc_value, traceback)
+
     @property
     def logfile(self):
         """
