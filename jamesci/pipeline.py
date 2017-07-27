@@ -49,6 +49,9 @@ class Pipeline(JobBase):
           path where all pipelines of a specific project will be stored.
         :param int pipeline_id: The ID of the pipeline to load.
         """
+        # Initialize the JobBase class with no parent.
+        super().__init__()
+
         # Import the pipeline's specific data. This will be set only once and
         # doesn't change when the pipeline is reloaded.
         self._id = pipeline_id
