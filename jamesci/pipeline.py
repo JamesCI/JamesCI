@@ -25,7 +25,7 @@ import time
 import types
 import yaml
 
-from .job import Job
+from .job import Job, WriteableJob
 from .job_base import JobBase
 
 
@@ -65,7 +65,7 @@ class Pipeline(JobBase):
         if self._fh:
             self._fh.close()
 
-    def _import(self, data, with_meta=True):
+    def _import(self, data, with_meta=True, writeable=False):
         """
         Import the contents of `data` into this pipeline.
 
@@ -76,6 +76,9 @@ class Pipeline(JobBase):
         :param bool with_meta: Whether to load metadata from `data`. Only
           :py:class:`PipelineConstructor` should set this parameter to
           :py:data:`False` for creating a new :py:class:`~.Pipeline`.
+        :param bool writeable: Whether the loaded contents should be writeable.
+          If set to :py:data:`True`, write-protected attributes will be
+          writeable.
         """
         # Load data in the parent class, which imports the common keys for
         # pipelines and jobs.
@@ -89,7 +92,12 @@ class Pipeline(JobBase):
         self._jobs = dict()
         for name, conf in data['jobs'].items():
             try:
-                self._jobs[name] = Job(name, conf, self, with_meta=with_meta)
+                # By default a regular job will be created. However, if the
+                # writeable parameter is True, the WriteableJob class will be
+                # used, so the job may be modified.
+                job_cls = Job if not writeable else WriteableJob
+                self._jobs[name] = job_cls(name, conf, self,
+                                           with_meta=with_meta)
             except Exception as e:
                 raise ImportError("failed to load job '{}'".format(name)) from e
 
@@ -121,7 +129,7 @@ class Pipeline(JobBase):
         """
         return open(os.path.join(self._wd, self._CONFIG_FILE), mode)
 
-    def _load(self):
+    def _load(self, writeable=False):
         """
         Load the contents of the pipline's configuration file.
 
@@ -129,6 +137,11 @@ class Pipeline(JobBase):
           This method will lock the pipeline's configuration file for shared
           access, i.e. this call will block, if a concurrent process did already
           lock the file exclusively.
+
+
+        :param bool writeable: Whether the loaded contents should be writeable.
+          If set to :py:data:`True`, write-protected attributes will be
+          writeable.
         """
         # Lock the configuration file for shared access while reading. Con-
         # current processes may also lock this file for shared-access (to load
@@ -141,7 +154,7 @@ class Pipeline(JobBase):
         # Import the data of the pipeline's configuration file. The current
         # contents of this pipeline will be overwritten.
         self._fh.seek(0)
-        self._import(yaml.load(self._fh))
+        self._import(yaml.load(self._fh), writeable=writeable)
 
         # Unlock the file-handle, so other processes may write to this file.
         portalocker.unlock(self._fh)

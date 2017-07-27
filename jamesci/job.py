@@ -160,3 +160,26 @@ class Job(JobBase):
         :rtype: Status
         """
         return self._status
+
+
+class WriteableJob(Job):
+    """
+    By default a :py:class:`Job` is write-protected. However, some attributes of
+    a job need to be changed while running the job. The :py:class:`~.Pipeline`
+    class may use this class instead of :py:class:`Job` for loading jobs, so the
+    job's attributes may be changed.
+
+    .. note::
+      Not all of the job's attributes will be writeable, as most attributes
+      shall not be edited during runtime.
+    """
+
+    @Job.status.setter
+    def status(self, status):
+        """
+        Set the job's status.
+
+
+        :param Status status: The status to be set.
+        """
+        self._status = status
