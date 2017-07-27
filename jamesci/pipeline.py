@@ -20,6 +20,7 @@
 
 import contextlib
 import os
+import portalocker
 import time
 import types
 import yaml
@@ -123,11 +124,27 @@ class Pipeline(JobBase):
     def _load(self):
         """
         Load the contents of the pipline's configuration file.
+
+        .. note::
+          This method will lock the pipeline's configuration file for shared
+          access, i.e. this call will block, if a concurrent process did already
+          lock the file exclusively.
         """
+        # Lock the configuration file for shared access while reading. Con-
+        # current processes may also lock this file for shared-access (to load
+        # its contents), but not lock this file exclusively. This protects the
+        # loader against data-corruption in the configuration file. Otherwise
+        # the concurrent process might write to it, while this one is in the
+        # middle of parsing its contents which will corrupt the pipeline.
+        portalocker.lock(self._fh, portalocker.LOCK_SH)
+
         # Import the data of the pipeline's configuration file. The current
         # contents of this pipeline will be overwritten.
         self._fh.seek(0)
         self._import(yaml.load(self._fh))
+
+        # Unlock the file-handle, so other processes may write to this file.
+        portalocker.unlock(self._fh)
 
     def dump(self):
         """
@@ -154,7 +171,17 @@ class Pipeline(JobBase):
         """
         Save the pipeline's configuration to the configuration file in the
         pipeline's working directory.
+
+        .. note::
+          This method will lock the pipeline's configuration file for exclusive
+          access, i.e. this call will block, if a concurrent process did already
+          lock the file for shared or exclusive access.
         """
+        # Lock the configuration file for exclusive access while writing to
+        # prevent concurrent processes reading from this file, as this may lead
+        # into data corruption.
+        portalocker.lock(self._fh, portalocker.LOCK_EX)
+
         # Dump the configuration of this pipeline as YAML in a configuration
         # file placed inside the pipeline's working directory. If the new
         # configuration consumes less bytes than the last one, remaining bytes
@@ -162,6 +189,10 @@ class Pipeline(JobBase):
         self._fh.seek(0)
         yaml.dump(self.dump(), self._fh, default_flow_style=False)
         self._fh.truncate()
+
+        # Unlock the file-handle, so other processes may read from and write to
+        # this file.
+        portalocker.unlock(self._fh)
 
     @property
     def contact(self):
