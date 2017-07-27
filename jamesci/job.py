@@ -19,6 +19,7 @@
 #
 
 import os
+import time
 
 from .job_base import JobBase
 from .status import Status
@@ -63,12 +64,16 @@ class Job(JobBase):
         # key is not available.
         if with_meta:
             self._status = Status[data['meta']['status']]
+            self._start = data['meta'].get('start')
+            self._finish = data['meta'].get('end')
 
         # If no meta-data should be imported from the provided configuration,
         # initialize the meta-data with default values. The initial status of a
-        # job will be 'created'.
+        # job will be 'created', start- and end-time will be None.
         else:
             self._status = Status.created
+            self._start = None
+            self._finish = None
 
     def dump(self):
         """
@@ -84,6 +89,10 @@ class Job(JobBase):
         ret['meta'] = {
             'status': str(self._status)
         }
+        if self._start:
+            ret['meta']['start'] = self._start
+        if self._finish:
+            ret['meta']['end'] = self._finish
         if self._stage:
             ret['stage'] = self._stage
         return ret
@@ -143,6 +152,14 @@ class Job(JobBase):
         self._pipeline.__exit__(exc_type, exc_value, traceback)
 
     @property
+    def finish(self):
+        """
+        :return: The job's finish time as UNIX timestamp.
+        :rtype: None, int
+        """
+        return self._finish
+
+    @property
     def logfile(self):
         """
         :return: Path of the job's logfile.
@@ -175,6 +192,14 @@ class Job(JobBase):
         return self._stage
 
     @property
+    def start(self):
+        """
+        :return: The job's start time as UNIX timestamp.
+        :rtype: None, int
+        """
+        return self._start
+
+    @property
     def status(self):
         """
         :return: The job's status.
@@ -195,10 +220,45 @@ class WriteableJob(Job):
       shall not be edited during runtime.
     """
 
+    def start_job(self):
+        """
+        Set the job's status to :py:attr:`~.Status.running` and the start time
+        to the current UNIX timestamp.
+        """
+        # Set the status of this job to running and the start time to the
+        # current UNIX timestamp. The end time will be set to None to remove
+        # previous values (e.g. if the job will be run a second time).
+        self._status = Status.running
+        self._start = int(time.time())
+        self._finish = None
+
+    def finish_job(self, status):
+        """
+        Set the job's status to `status` and the finish time to the current UNIX
+        timestamp.
+
+        .. note::
+          If the job has not been started yet (e.g. because an error occured
+          before :py:meth:`start_job` has been called), this method will also
+          set the job's start-time to the current UNIX timestamp.
+        """
+        # Set the status of the job to the pased one.
+        self._status = status
+
+        # Set the job's end-time, and also the start-time if not already set, to
+        # the current UNIX timestamp.
+        if not self._start:
+            self._start = int(time.time())
+        self._finish = int(time.time())
+
     @Job.status.setter
     def status(self, status):
         """
         Set the job's status.
+
+        .. note::
+          For setting the status when starting and finishing a job use
+          :py:meth:`start_job` and :py:meth:`end_job`.
 
 
         :param Status status: The status to be set.
