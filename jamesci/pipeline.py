@@ -331,6 +331,13 @@ class PipelineConstructor(Pipeline):
         Create the pipeline in the `project_path`.
 
 
+        .. warning::
+          Once created, this method can't be called a second time as the
+          pipeline has been created. That means changing and of the attributes
+          after this method has been called will not have any effect, as the
+          changes can't be saved anymore.
+
+
         :param str project_path: The working directory of the project, i.e. the
           path where all pipelines of a specific project will be stored.
         """
