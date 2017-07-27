@@ -53,9 +53,16 @@ class Pipeline(JobBase):
         self._id = pipeline_id
         self._wd = self._get_wd(project_wd, pipeline_id)
 
-        # Load the configuration for the given pipeline from the pipeline's
-        # configuration file in the pipeline's working directory.
+        # Open the configuration file for the given pipeline in the pipeline's
+        # working directory and load its contents into this instance.
+        self._fh = self._config_file('r+')
         self._load()
+
+    def __del__(self):
+        # If a file-handle for the pipeline's configuration is opened, it should
+        # be closed to prevent corruption.
+        if self._fh:
+            self._fh.close()
 
     def _import(self, data, with_meta=True):
         """
@@ -105,14 +112,13 @@ class Pipeline(JobBase):
         """
         return os.path.join(project_wd, str(pipeline_id))
 
-    @classmethod
-    def _config_file(cls, pipeline_wd):
+    def _config_file(self, mode='r'):
         """
-        :param None,str pipeline_wd: The working directory of the pipeline.
-        :return: The pipeline's configuration file.
-        :rtype: str
+        :param str mode: The mode to use for opening the configuration file.
+        :return: File handle to the pipeline's configuration file.
+        :rtype: io.TextIOWrapper
         """
-        return os.path.join(pipeline_wd, cls._CONFIG_FILE)
+        return open(os.path.join(self._wd, self._CONFIG_FILE), mode)
 
     def _load(self):
         """
@@ -120,7 +126,8 @@ class Pipeline(JobBase):
         """
         # Import the data of the pipeline's configuration file. The current
         # contents of this pipeline will be overwritten.
-        self._import(yaml.load(open(self._config_file(self._wd))))
+        self._fh.seek(0)
+        self._import(yaml.load(self._fh))
 
     def dump(self):
         """
@@ -149,9 +156,12 @@ class Pipeline(JobBase):
         pipeline's working directory.
         """
         # Dump the configuration of this pipeline as YAML in a configuration
-        # file placed inside the pipeline's working directory.
-        yaml.dump(self.dump(), open(self._config_file(self._wd), 'w'),
-                  default_flow_style=False)
+        # file placed inside the pipeline's working directory. If the new
+        # configuration consumes less bytes than the last one, remaining bytes
+        # will be truncated.
+        self._fh.seek(0)
+        yaml.dump(self.dump(), self._fh, default_flow_style=False)
+        self._fh.truncate()
 
     @property
     def contact(self):
@@ -330,4 +340,5 @@ class PipelineConstructor(Pipeline):
 
         # Save the pipeline's configuration to the pipeline's configuration file
         # in the pipeline's working directory.
+        self._fh = self._config_file('w')
         self._save()
