@@ -19,52 +19,30 @@
 #
 
 import colors
-import os
 import subprocess
 
 
 class Shell(object):
     """
-    Manage a shell environment.
+    This class helps managing the shell environment used for executing the job's
+    steps.
     """
 
-    def __init__(self, output, env=None):
+    def __init__(self, output):
         """
-        Parameters:
-        ---
-        output: file
-            Output logfile, where the command's stdout and stderr will be
-            written to.
-        env: dict
-            Environment variables to be used for the shell commands. If set to
-            None, the current environment will be inherited.
+        :param io.TextIOWrapper output: Destination stream, the output's
+          :py:data:`~sys.stdout` and :py:data:`~sys.stderr` will be redirected
+          to.
         """
         self._output = output
-        self._env = env if env is not None else os.environ
-
-    def updateEnv(self, env):
-        """
-        Set a specialized environment for the shell.
-
-        Note: The environment will be defined in addition to the current one.
-              That means you can't delete any variables in this step.
-
-        Parameters:
-        ---
-        env: dict
-            Additional environment variables to be set.
-        """
-        self._env.update(env)
 
     def run(self, commands, echo=True, failMessage=None):
         """
         Run commands in the current working directory. The output of stdout and
-        stderr will be written into file.
+        stderr will be written into :py:attr:`_stream`.
 
-        Parameters:
-        ---
-        commands: str | list
-            Single command or list of commands to execute.
+
+        :param str,list commands: Single command or list of commands to execute.
         """
         # If commands is a single sting, convert it to a list with a single
         # item, so the below code can handle both types of input without much
@@ -78,9 +56,9 @@ class Shell(object):
             # the command, so the output file doesn't get corrupted.
             try:
                 if echo:
-                    self._output.write('$ ' + command + '\n')
+                    self._output.write('$ {}\n'.format(command))
                     self._output.flush()
-                subprocess.check_call([command], shell=True, env=self._env,
+                subprocess.check_call([command], shell=True,
                                       stdout=self._output, stderr=self._output)
 
             except subprocess.CalledProcessError as e:
@@ -89,11 +67,8 @@ class Shell(object):
                 # raised if not deactivated, so the callee get's notified about
                 # it.
                 if not failMessage:
-                    failMessage = ('The command "' + command +
-                                   '" failed and exited with ' +
-                                   str(e.returncode) + '.')
-                self._output.write('\n' +
-                                   colors.color(failMessage,
-                                                fg='red', style='bold') +
-                                   '\n\n')
+                    failMessage = ('The command "{}" failed and exited with {}.'
+                                   .format(command, e.returncode))
+                self._output.write('\n{}\n\n'.format(
+                    colors.color(failMessage, fg='red', style='bold')))
                 raise
