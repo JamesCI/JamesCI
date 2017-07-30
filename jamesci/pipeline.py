@@ -287,7 +287,7 @@ class Pipeline(JobBase):
         return self._created
 
     @property
-    def id():
+    def id(self):
         """
         :return: The pipeline's id.
         :rtype: None, int
