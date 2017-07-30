@@ -20,13 +20,12 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
+import contextlib
 import jamesci
 import os
 import subprocess
 import sys
 import tempfile
-import time
-import yaml
 
 
 class Tee(object):
@@ -85,7 +84,8 @@ class ExceptionHandler(jamesci.ExceptionHandler):
         # If a job has been defined before the exception handler got called, set
         # the job's status to errored.
         if cls.job:
-            job.status = jamesci.Status.errored
+            with cls.job as job:
+                job.finish_job(jamesci.Status.errored)
             sys.stderr = tee = Tee(cls.job, sys.stderr)
 
             # Append two newlines to the job's logfile as spacer between the
@@ -110,11 +110,6 @@ def parse_config():
       :py:meth:`.Config.parse_args` will print an error message and this script
       will be executed immediately.
 
-    .. note::
-      This function does not handle any exceptions raised, as these will be
-      handled by the :py:class:`.ExceptionHandler` to print a pretty error
-      message to :py:data:`~sys.stderr`.
-
 
     :return: The parsed configuration as read-only dictionary.
     :rtype: ReadonlyDict
@@ -129,203 +124,40 @@ def parse_config():
     return parser.parse_args()
 
 
-def finish_job(status, exit=True):
+def git_commands(job, config):
     """
-    Set the finished job's metadata.
+    Get the commands needed to clone the repository of this `job`.
 
-    Parameters:
-    ---
-    status: str
-        The job's status to be set.
-    exit: bool
-        Wheter to exit after all processing has been done or not.
+    .. note::
+      A job may disable cloning the repository entirely. In this case this
+      function will return an empty :py:class:`list`.
+
+
+    :param jamesci.Job job: The job to be run by the runner.
+    :param dict config: The runner's configuration.
+    :return: The commands to be executed for cloning the job's repository.
+    :rtype: list
     """
-    with job:
-        # Update the job's metadata.
-        job.status = status
-        job['meta']['end'] = int(time.time())
+    # If cloning the repository is disabled by the job, return an empty tuple,
+    # as no commands need to be executed.
+    if job.git['depth'] <= 0:
+        return ()
 
-    if exit:
-        sys.exit(0)
+    # Generate the repository's URL from the template in the configuration file.
+    # After cloning the repository, the revision for this pipeline will be
+    # checked out.
+    url = config['git']['url_template'].format(config['project'])
+    commands = [
+        'git clone --depth={} {} .'.format(job.git['depth'], url),
+        'git checkout {}'.format(job.pipeline.revision)
+    ]
 
+    # By default all submodules will be initialized. However, one may disable
+    # this feature by setting the 'submodules' key in 'git' to false.
+    if job.git['submodules']:
+        commands.append('git submodule update --init --recursive')
 
-def main():
-    # Get the configuration for this job. If either the pipeline doesn't exist,
-    # the configuration couldn't be parsed or the job's name is not present in
-    # the configuration, an error message will be printed and the script exited
-    # immediately.
-    try:
-        job = jamesci.LegacyJob(config.general['data_dir'], config['project'],
-                                config['pipeline'], config['job'])
-        eh.job = job
-
-    except FileNotFoundError:
-        # Either the project name or the pipeline ID was invalid: A
-        # configuration file for this combination couldn't be found.
-        sys.exit('No configuration file found for Pipeline.')
-
-    except yaml.scanner.ScannerError:
-        # The configuration file could be read, but no parsed.
-        sys.exit('Could not parse the pipeline\'s configuration file.')
-
-    except KeyError:
-        # The configuration file could be read and parsed, but it doesn't
-        # contain a valid configuration for the given job.
-        sys.exit('Pipeline has no job named \'' + config['job'] + '\'.')
-
-    # Open a new file for the job's output. The file may exist before executing
-    # the runner (e.g. information from a scheduler), but all previous contents
-    # will be discarded.
-    #
-    # Note: Unbuffered I/O can't be used here due a bug in Python 3. See
-    #       http://bugs.python.org/issue17404 for more information.
-    global logfile
-    logfile = open(job.dir + '/' + config['job'] + '.txt', 'w')
-
-    # Set the job's status to running, so the UI and other tools may be notified
-    # and can view some data from the logs in live view.
-    with job:
-        job.status = jamesci.Status.running
-        job['meta']['start'] = int(time.time())
-
-    # Create a new shell environment, in which the job's commands can be
-    # executed. A dedicated environment class will be used, so specific
-    # environment settings need to be set only once.
-    shell = jamesci.Shell(logfile)
-    if 'env' in job:
-        shell.updateEnv(job['env'])
-
-    # Try creating a temporary directory for this job. It will be a subdirectory
-    # of the current working directory. All following operations will be
-    # executed inside this directory.
-    with tempfile.TemporaryDirectory(dir=os.getcwd()) as path:
-        os.chdir(path)
-
-        # If a prolog script is defined for the runner, run this script before
-        # any other step will be executed. This script may be used to print
-        # information about the used worker or install required dependencies.
-        # If an error occurs while executing this script, the job's status will
-        # be failed.
-        if 'runner' in config and 'prolog_script' in config['runner']:
-            try:
-                shell.run(config['runner']['prolog_script'], echo=False,
-                          failMessage='Runner\'s prolog script failed.')
-            except subprocess.CalledProcessError:
-                finish_job(jamesci.Status.errored)
-
-        # Clone the git repository into the current working directory. By
-        # default only the 50 latest commits will be cloned (shallow clone). If
-        # depth is set to 0, the clone will be ignored entirely.
-        git_clone_depth = job['git']['depth'] if 'depth' in job['git'] else 50
-        if git_clone_depth > 0:
-            git_commands = list()
-
-            # Generate the repository's URL from the template in the
-            # configuration file. After cloning the repository, the revision for
-            # this pipeline will be checked out.
-            git_repo_url = config.get('git', 'url_template',
-                                      vars={'project': config['project']})
-            git_commands.append('git clone --depth=' + str(git_clone_depth)
-                                + ' ' + git_repo_url + ' .')
-            git_commands.append(
-                'git checkout ' + job.pipeline['git']['revision'])
-
-            # By default all submodules will be initialized. However one may
-            # disable this feature by setting the 'submodules' key in 'git' to
-            # false.
-            if ('submodules' not in job['git'] or
-                    job['git']['submodules'] != 'false'):
-                git_commands.append('git submodule update --init --recursive')
-
-            # Execute all git commands. If an error occurs while executing them,
-            # the job's status will be failed.
-            try:
-                shell.run(git_commands)
-            except subprocess.CalledProcessError:
-                finish_job(jamesci.Status.errored)
-
-        # Run all steps prior the 'script' step. If executing one of the steps
-        # fails, the job will be marked as errored and the execution stops
-        # immediately.
-        try:
-            for step in ['before_install', 'install', 'before_script']:
-                if step in job:
-                    shell.run(job[step])
-        except subprocess.CalledProcessError:
-            finish_job(jamesci.Status.errored)
-
-        # Run the 'script' step of the job. If executing this step fails, the
-        # 'after_failure' step will be executed before leaving the job. The
-        # 'script' step will be surrounded by newlines, so it can be better
-        # distinguished from other steps in the output.
-        try:
-            logfile.write('\n')
-            shell.run(job['script'])
-            logfile.write('\n')
-
-        except subprocess.CalledProcessError:
-            # The 'script' step failed. Execute the 'after_failed' step now, but
-            # ignore its return status entirely, as the job will be marked as
-            # errored anyway later.
-            if 'after_failed' in job:
-                try:
-                    shell.run(job['after_failed'])
-                except subprocess.CalledProcessError:
-                    pass
-            finish_job(jamesci.Status.failed)
-
-        except KeyError:
-            # The 'script' step is not defined for this job. In this case the
-            # job's status will be errored, as this is an error in the James CI
-            # configuration and not in the user's code.
-            logfile.write('\n\n' +
-                          colors.color('Job has no script defined.',
-                                       fg='red', style='bold') +
-                          '\n\n')
-            finish_job(jamesci.Status.errored)
-
-        # Run the 'after_success' step of the job. If executing this step fails,
-        # the failure will be ignored. This might feel strange, but is pretty
-        # useful in some cases: Users should only execute commands in this step
-        # that don't affect other steps, e.g. to upload coverage data to an
-        # external provider. The job then won't fail, if the provider isn't
-        # reachable and execution will continue with the deploy steps.
-        if 'after_success' in job:
-            try:
-                shell.run(job['after_success'])
-            except subprocess.CalledProcessError:
-                pass
-
-        # Run the 'before_deploy' step of the job. If executing this step fails,
-        # the job will be marked as errored and the execution stops immediately.
-        if 'before_deploy' in job:
-            try:
-                shell.run(job['before_deploy'])
-            except subprocess.CalledProcessError:
-                finish_job(jamesci.Status.errored)
-
-        # Run the 'deploy' step of the job. If executing this step fails, the
-        # job will be marked as failed and execution stops immediately.
-        if 'deploy' in job:
-            try:
-                shell.run(job['deploy'])
-            except subprocess.CalledProcessError:
-                finish_job(jamesci.Status.failed)
-
-        # Run the 'after_deploy' and 'after_script' steps of the jobs. If
-        # executing these steps fails, the failure will be ignored and the next
-        # step executed. As above in 'after_success', users should only execute
-        # commands in this step, that don't affect other steps of the job.
-        for step in ['after_deploy', 'after_script']:
-            if step in job:
-                try:
-                    shell.run(job[step])
-                except subprocess.CalledProcessError:
-                    pass
-
-        # The job has been finished now. Update the job's status and do the
-        # post-processing now.
-        finish_job(jamesci.Status.errored, exit=False)
+    return commands
 
 
 if __name__ == "__main__":
@@ -347,6 +179,155 @@ if __name__ == "__main__":
     # immediately. That means: no error handling is neccessary here.
     config = parse_config()
 
-    # Run the 'main' method. This is a legacy from the previous exception
-    # handler.
-    main()
+    # Get the configuration for the job to be run. If either the pipeline
+    # doesn't exist, the configuration couldn't be parsed or a job with the
+    # required name is not present in the pipeline, exceptions will be raised
+    # (and handled by the custom exception handler set above).
+    try:
+        job = jamesci.Pipeline(os.path.join(config['general']['root'],
+                                            config['project']),
+                               config['pipeline']
+                               ).jobs[config['job']]
+
+        # Save a reference to the job in the error handler, so its status may be
+        # set to errored, if an error occurs in the runner, that is not catched
+        # properly.
+        if 'JAMESCI_DEBUG' not in os.environ:
+            eh.job = job
+    except KeyError as e:
+        # If the pipeline has no job with the required name, a NameError
+        # exception will be thrown, as the KeyError exception doesn't have a
+        # meaningful error message.
+        raise NameError("job '{}' not in pipeline".format(config['job'])) from e
+
+    # Set the job's status to running, so the UI and other tools may be notified
+    # and can view some data from the logs in live view.
+    with job as j:
+        j.start_job()
+
+    # If the job has a specialized environment, update the system's environment
+    # with the defined variables. Existing variables will be kept.
+    if job.env:
+        os.environ.update(job.env)
+
+    # Open the job's logfile. A context will be used to ensure the file will be
+    # closed properly. This is important, as unbuffered I/O can't be used due a
+    # bug in Python 3 (See http://bugs.python.org/issue17404) and a context
+    # ensures all buffers get flushed before the exception handler gets called.
+    with open(job.logfile, 'w') as logfile:
+        # Try creating a temporary directory for this job. It will be a sub-
+        # directory of the current working directory and will be deleted after
+        # the runner has finished execution (with any status of the job). All
+        # following operations will be executed inside this directory.
+        with tempfile.TemporaryDirectory(dir=os.getcwd()) as path:
+            os.chdir(path)
+
+            # Initialize a new instance of the shell management class. The
+            # system's environment (updated by optional job specific environment
+            # variables) will be used and the command's output be redirected to
+            # the job's logfile.
+            shell = jamesci.Shell(logfile)
+
+            # Use a try-except block to catch all exceptions raised by the shell
+            # about non-zero exit codes, as the runner itself has no malfunction
+            # and these exceptions should not be catched by the global exception
+            # handler. If any of the enclosed scripts fails, the job's status
+            # will be set to 'errored', as the environment could not be properly
+            # set up.
+            try:
+                # If a prolog script is defined for the runner, run this script
+                # before any other step will be executed. This script may be
+                # used to print information about the used worker or install
+                # required dependencies.
+                if 'runner' in config and 'prolog_script' in config['runner']:
+                    shell.run(config['runner']['prolog_script'], echo=False,
+                              failMessage="Runner's prolog script failed.")
+
+                # If the repository for this job should be cloned, clone the git
+                # repository into the current working directory.
+                shell.run(git_commands(job, config))
+
+                # Run all steps prior the 'script' step. If executing one of the
+                # steps fails, the job's status will be 'errored' and the
+                # execution stops immediately.
+                for step in ['before_install', 'install', 'before_script']:
+                    if step in job.steps:
+                        shell.run(job.steps[step])
+
+            except subprocess.CalledProcessError:
+                # An error occured while setting up the job's environment or
+                # executing the setup-steps of the job. Set the job's status to
+                # errored and exit the runner gracefully.
+                with job as j:
+                    j.finish_job(jamesci.Status.errored)
+                sys.exit(0)
+
+            # Run the 'script' step of the job. If executing this step fails,
+            # the 'after_failure' step will be executed before leaving the job.
+            # The 'script' step will be surrounded by newlines, so it can be
+            # better distinguished from other steps in the output.
+            if 'script' in job.steps:
+                try:
+                    logfile.write('\n')
+                    shell.run(job.steps['script'])
+                    logfile.write('\n')
+
+                except subprocess.CalledProcessError:
+                    # The 'script' step failed. Execute the 'after_failed' step
+                    # now, but ignore its return status entirely, as the job
+                    # will be marked as failed anyway later.
+                    if 'after_failed' in job.steps:
+                        with contextlib.suppress(subprocess.CalledProcessError):
+                            shell.run(job.steps['after_failed'])
+
+                    # Set the job's status to failed and exit the runner
+                    # gracefully.
+                    with job as j:
+                        j.finish_job(jamesci.Status.failed)
+                    sys.exit(0)
+
+                # Run the 'after_success' step of the job. If executing this
+                # step fails, the failure will be ignored. This might feel
+                # strange, but is pretty useful in some cases: Users should only
+                # execute commands in this step that don't affect other steps,
+                # e.g. to upload coverage data to an external provider. The job
+                # then won't fail, if the provider isn't reachable and execution
+                # will continue with the deploy steps.
+                if 'after_success' in job.steps:
+                    with contextlib.suppress(subprocess.CalledProcessError):
+                        shell.run(job.steps['after_success'])
+
+            # Run the 'before_deploy' step of the job. If executing this step
+            # fails, the job will be marked as errored and the execution stops
+            # immediately.
+            if 'before_deploy' in job.steps:
+                try:
+                    shell.run(job.steps['before_deploy'])
+                except subprocess.CalledProcessError:
+                    with job as j:
+                        j.finish_job(jamesci.Status.errored)
+                    sys.exit(0)
+
+            # Run the 'deploy' step of the job. If executing this step fails,
+            # the job will be marked as failed and execution stops immediately.
+            if 'deploy' in job.steps:
+                try:
+                    shell.run(job.steps['deploy'])
+                except subprocess.CalledProcessError:
+                    with job as j:
+                        j.finish_job(jamesci.Status.failed)
+                    sys.exit(0)
+
+            # Run the 'after_deploy' and 'after_script' steps of the jobs. If
+            # executing these steps fails, the failure will be ignored and the
+            # next step executed. As above in 'after_success', users should only
+            # execute commands in these steps, that don't affect other steps of
+            # the job.
+            for step in ['after_deploy', 'after_script']:
+                if step in job.steps:
+                    with contextlib.suppress(subprocess.CalledProcessError):
+                        shell.run(job.steps[step])
+
+    # Set the job's status to successed.
+    with job as j:
+        j.finish_job(jamesci.Status.success)

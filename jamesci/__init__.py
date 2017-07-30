@@ -20,8 +20,6 @@
 
 from .config import Config
 from .exception_handler import ExceptionHandler
-from .legacy_job import LegacyJob
-from .legacy_pipeline import LegacyPipeline
 from .pipeline import Pipeline, PipelineConstructor
 from .shell import Shell
 from .status import Status
