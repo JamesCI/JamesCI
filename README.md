@@ -26,27 +26,39 @@ small amount of configuration and no special features.
 
 ## Concept
 
-After each commit, James CI will extract the configuration from a file stored in
-the repository just like other CI's do, too. The extracted script will be
-executed, or passed to an external handler, e.g. if you need parallel execution,
-or want to use a scheduler like [SLURM](https://slurm.schedmd.com).
+After each push, `james-dispatch` will extract the pipeline's configuration from
+a file stored in the repository just like other CIs do. After a new pipeline has
+been created, `james-schedule` will schedule all jobs for each stage of the
+pipeline. Finally, `james-run` will run a specific job of the pipeline.
 
 All required data is stored in flat-files which will be evaluated by a simple UI
 written in PHP using the [Silex](https://github.com/silexphp/Silex)
 microframework and the [Twig](https://github.com/twigphp/Twig) template engine,
 so it's easy to install and customize.
 
-All in all James CI tries to be as simple as possible. Any specialization for
-the local environment should take place in helper scripts and is not part of the
-CI itself.
+As mentioned above, James CI just provides the basic infrastructure. That means:
+James CI doesn't support any special features, e.g. running jobs in a container
+or notify the user about the pipeline's status in a special messenger. However,
+James CI is designed for flexibility, e.g.:
+
+* If the job should not be executed while the user is connected, e.g. for long
+  running jobs, or jobs should be run in parallel, just replace the *scheduler*
+  to a custom one that schedules the job according to your needs. E.g. you could
+  submit the job in a batch system like [SLURM](https://slurm.schedmd.com).
+* If the job should be run inside of a container or a vm, just replace the
+  *runner* by a custom wrapper for setting up the job's environment and execute
+  `james-run` inside the container or vm. **Note:** The runner needs access to
+  the James CI data directory, containing the pipeline's configuration and job
+  logs.
 
 
-## Configuring Your Project
+## Configuring Your Pipeline
 
 Using James CI should be as simple as using other CI's. Therefore a YAML file
 named `.james-ci.yml` stored in your repository will be used for configuring the
 jobs. Its structure is similar (but not equal) to the one known by
-[Travis CI](http://travis-ci.org/).
+[Travis CI](http://travis-ci.org/) and
+[GitLab CI](https://about.gitlab.com/features/gitlab-ci-cd/).
 
 A simple configuration file might look like this:
 
@@ -80,7 +92,8 @@ Empty steps will be skipped. E.g. for the following config, one job would print
 ```YAML
 jobs:
   job_a:
-  job_b: echo 'b'
+  job_b:
+    script: echo 'b'
 
 script: echo 'a'
 ```
@@ -100,16 +113,18 @@ into the repositories directory, is:
 
 ### Breaking the Job
 
-If any of the commands in any step of the jobs lifecycle fails, no further
-commands will be executed (see exceptions in `script` step below). The status of
-the job depends on the step that failed:
+If any of the commands in any step (except the `after_*` steps) of the job's
+lifecycle fails, no further commands will be executed (see exceptions in
+`script` step below). The status of the job depends on the step that failed:
 
 * If `before_install`, `install`, `before_script` or `before_deploy` return a
   non-zero exit code, the job's status will be *errored*.
-* If `script` or `deploy` return a non-zero exit code, the job is failed. For
-  `script` `after_failure` will be executed before leaving the job.
+* If `script` or `deploy` return a non-zero exit code, the job's status is
+  failed. For `script` `after_failure` will be executed before leaving the job.
 * If `after_success`, `after_failure`, `after_deploy` or `after_script` return a
-  non-zero exit code, this doesn't affect the job's status.
+  non-zero exit code, this doesn't affect the job's status. **Note:** As the job
+  continues running after failures in these steps, you should *not* run vital
+  commands in these steps, but e.g. cleanup.
 
 ### Job Stages
 
