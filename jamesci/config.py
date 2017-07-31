@@ -85,7 +85,19 @@ class Config(argparse.ArgumentParser):
         # could not be opened, an error has been returned, so the handle doesn't
         # need to be checked.
         if namespace['config'] is not None:
+            # Set the path of the used configuration file in the environment, so
+            # other utilities of James CI may use this path and no flags have to
+            # be passed to them.
+            os.environ['JAMESCI_CONFIG'] = namespace['config'].name
+
+            # Return the already opened file handle.
             return namespace['config']
+
+        # If a configuration file has been defined in the environment (e.g. set
+        # by the dispatcher before executing the scheduler), this file will be
+        # used next.
+        if 'JAMESCI_CONFIG' in os.environ:
+            return open(os.environ['JAMESCI_CONFIG'])
 
         # Otherwise check default locations for the configuration file and open
         # the first occurance.
