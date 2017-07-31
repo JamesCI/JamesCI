@@ -52,6 +52,16 @@ def parse_config():
     return parser.parse_args()
 
 
+def runner(config):
+    """
+    :return: The runner (or wrapper) to be used.
+    :rtype: str
+    """
+    return (config['runner']['wrapper']
+            if ('runner' in config and 'wrapper' in config['runner'])
+            else 'james-run')
+
+
 if __name__ == "__main__":
     # First, set a custom exception handler. As this script usually runs inside
     # the git post-reive hook, the user shouldn't see a full traceback, but a
@@ -74,8 +84,7 @@ if __name__ == "__main__":
     # Get the configuration for the pipeline to be scheduled. If the pipeline
     # doesn't exist or the configuration couldn't be parsed, exceptions will be
     # raised (and handled by the custom exception handler set above).
-    pipeline = jamesci.Pipeline(os.path.join(config['general']['root'],
-                                             config['project']),
+    pipeline = jamesci.Pipeline(os.path.join(config['root'], config['project']),
                                 config['pipeline'])
 
     # Iterate over all stages. If the pipeline has no stages, only the default
@@ -86,7 +95,7 @@ if __name__ == "__main__":
         # end of the stage.
         for job in (name for name, job in pipeline.jobs.items()
                     if job.stage == stage):
-            subprocess.check_call(['james-run', config['project'],
+            subprocess.check_call([runner(config), config['project'],
                                    str(pipeline.id), job])
 
         # If the pipeline has more stages than just the default stage, check the

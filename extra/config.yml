@@ -18,13 +18,33 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-general:
-  # Where to store the job-related data.
-  data_dir: /srv/www/james/data
+# The following path will be used as main storage for all of the CI's data.
+# Configurations of each pipeline, the job's log-files and similar data will be
+# stored here.
+root: /srv/james/data
 
-git:
-  url_template: "git@localhost:%(project)s.git"
+# If the default scheduler 'james-schedule' doesn't fit your needs, you may
+# define a custom one. It takes two arguments: The project's name and the ID of
+# the pipeline to be scheduled.
+# scheduler: /path/to/scheduler
 
 runner:
-  # An optional script to run before the job.
-  prolog_script: "false"
+  # If the runner should be run inside a vm or container, you'll need a wrapper
+  # to setup the runner's environement and executing the runner in it. It takes
+  # three arguments: The project's name, the ID of the pipeline and the job's
+  # name.
+  # wrapper: /path/to/wrapper
+
+  # The hostname should be printed before the job starts, or some dependencies
+  # should be installed? No problem! Just define a bunch of script to be
+  # executed before the job.
+  #
+  # Note: These commands will be evaluated by a shell, i.e. you may use
+  #       arguments, pipes, etc.
+  # prolog_script:
+  # - echo 'running on' $(hostname)
+  # - apt-get update && apt-get upgrade
+
+  # Define a template for the git clone URL, used by the runner to clone the
+  # pipeline's repository. Use '{}' as placeholder for the project's name.
+  git_url: 'file:///srv/git/{}.git'

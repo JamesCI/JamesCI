@@ -181,7 +181,7 @@ if __name__ == "__main__":
     # Save the pipeline to the pipeline's configuration file. This also will
     # assign a new ID for the pipeline and makes the pipeline's working
     # directory.
-    pipeline.create(os.path.join(config['general']['root'], config['project']))
+    pipeline.create(os.path.join(config['root'], config['project']))
 
     # Run the scheduler for the new pipeline, which will schedule the jobs to be
     # run. A default scheduler will be used, but might be replaced by a custom

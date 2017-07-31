@@ -146,7 +146,7 @@ def git_commands(job, config):
     # Generate the repository's URL from the template in the configuration file.
     # After cloning the repository, the revision for this pipeline will be
     # checked out.
-    url = config['git']['url_template'].format(config['project'])
+    url = config['runner']['git_url'].format(config['project'])
     commands = [
         'git clone --depth={} {} .'.format(job.git['depth'], url),
         'git checkout {}'.format(job.pipeline.revision)
@@ -184,8 +184,7 @@ if __name__ == "__main__":
     # required name is not present in the pipeline, exceptions will be raised
     # (and handled by the custom exception handler set above).
     try:
-        job = jamesci.Pipeline(os.path.join(config['general']['root'],
-                                            config['project']),
+        job = jamesci.Pipeline(os.path.join(config['root'], config['project']),
                                config['pipeline']
                                ).jobs[config['job']]
 
