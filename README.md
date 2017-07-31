@@ -21,7 +21,10 @@ systems to get the flexibility of professional CI in small scale?
 James just provides the really basic infrastructure for your CI server to have a
 tiny footprint and be very flexible to use. It aims to be the CI pendant of
 [GitList](http://gitlist.org): By default there is no authentication, just a
-small amount of configuration and no special features.
+small amount of configuration and no special features. However, as James CI is
+designed for flexibility, these features may be implemented in custom hooks or
+by replacing entire parts of James CI. See the configuration sections below for
+further details.
 
 
 ## Concept
@@ -35,21 +38,6 @@ All required data is stored in flat-files which will be evaluated by a simple UI
 written in PHP using the [Silex](https://github.com/silexphp/Silex)
 microframework and the [Twig](https://github.com/twigphp/Twig) template engine,
 so it's easy to install and customize.
-
-As mentioned above, James CI just provides the basic infrastructure. That means:
-James CI doesn't support any special features, e.g. running jobs in a container
-or notify the user about the pipeline's status in a special messenger. However,
-James CI is designed for flexibility, e.g.:
-
-* If the job should not be executed while the user is connected, e.g. for long
-  running jobs, or jobs should be run in parallel, just replace the *scheduler*
-  to a custom one that schedules the job according to your needs. E.g. you could
-  submit the job in a batch system like [SLURM](https://slurm.schedmd.com).
-* If the job should be run inside of a container or a vm, just replace the
-  *runner* by a custom wrapper for setting up the job's environment and execute
-  `james-run` inside the container or vm. **Note:** The runner needs access to
-  the James CI data directory, containing the pipeline's configuration and job
-  logs.
 
 
 ## Configuring Your Pipeline
@@ -179,8 +167,63 @@ env:
 ```
 
 
-## Skipping a build
+## Skipping a Build
 
 By default the dispatcher will create a new pipeline for each commit passed as
 parameter. However, you may skip a particular commit by adding `[ci skip]` or
 `[skip ci]` to the git commit message.
+
+
+## Configuring Your CI Environment
+
+As mentioned above, James CI just provides the basic infrastructure. That means:
+James CI doesn't support any special features, e.g. running jobs in a container
+or notify the user about the pipeline's status in a special messenger. However,
+James CI is designed for flexibility, so some parts of James CI may be extended
+or even replaced to get a CI that fits to your needs.
+
+A pipeline will be executed in several steps, which may be extended or modified
+as described below:
+
+### The Dispatcher
+
+The dispatcher `james-dispatch` will be executed inside the git *post-commit*
+hook. First, it checks if a pipeline should be executed for this commit, then it
+extracts the  pipeline's configuration from the `.james-ci.yml` file inside the
+repository. A new pipeline will be created and the scheduler invoked.
+
+*The dispatcher can't be extended, as no magic happens here.*
+
+### The Scheduler
+
+The scheduler is responsible for scheduling all jobs of a pipeline in the order
+of their stages. If a stage fails, no further stages must be scheduled.
+
+The default scheduler `james-schedule` will do just that: It will run one job
+after another and stops, if a stage fails. Neither parallel nor background
+execution is supported - the jobs will be run while the user is still connected
+for pushing the commits. That implies, this scheduler is only useful for short
+running jobs in small environments.
+
+If the job should not be executed while the user is connected, e.g. for long
+running jobs, or jobs should be run in parallel, just replace the *scheduler* to
+a custom one that schedules the job according to your needs. E.g. you could
+submit the job in a batch system like [SLURM](https://slurm.schedmd.com).
+
+### The Runner
+
+`james-run` is responsible for running the job. It makes a temporary directory,
+clones the repository and checks out the pipeline's revision, runs the job's
+commands in this directory and dumps the output into the job's log-file.
+
+Custom scripts may be run before the job starts running, e.g. to install
+required dependencies. Just fill the `runner.prolog_script` key in the
+configuration with a bunch of scripts to execute.
+
+#### Running Inside a VM / Container
+
+You should *not* replace `james-run` by a custom runner. However, sometimes a
+job needs to be run inside a vm or container, or just an other host via SSH. In
+this case, you may simply define a wrapper in the `runner.wrapper` key in the
+configuration, which will setup the environment and calling `james-run` where it
+should be run.
