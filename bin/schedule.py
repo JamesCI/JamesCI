@@ -86,7 +86,7 @@ if __name__ == "__main__":
         # end of the stage.
         for job in (name for name, job in pipeline.jobs.items()
                     if job.stage == stage):
-            subprocess.check_call(['james-runner', config['project'],
+            subprocess.check_call(['james-run', config['project'],
                                    str(pipeline.id), job])
 
         # If the pipeline has more stages than just the default stage, check the

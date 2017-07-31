@@ -105,9 +105,9 @@ setup(
 
     packages=['jamesci'],
     scripts=[
-        'bin/dispatcher.py',
-        'bin/runner.py',
-        'bin/scheduler.py',
+        'bin/dispatch.py',
+        'bin/run.py',
+        'bin/schedule.py',
     ],
 
 

@@ -186,5 +186,5 @@ if __name__ == "__main__":
     # Run the scheduler for the new pipeline, which will schedule the jobs to be
     # run. A default scheduler will be used, but might be replaced by a custom
     # one, if defined in the config.
-    subprocess.check_call([config.get('scheduler', 'james-scheduler'),
+    subprocess.check_call([config.get('scheduler', 'james-schedule'),
                            config['project'], str(pipeline.id)])
