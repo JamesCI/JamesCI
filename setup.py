@@ -107,6 +107,7 @@ setup(
     scripts=[
         'bin/dispatcher.py',
         'bin/runner.py',
+        'bin/scheduler.py',
     ],
 
 

@@ -165,6 +165,12 @@ class Pipeline(JobBase):
         if unlock:
             portalocker.unlock(self._fh)
 
+    def reload(self):
+        """
+        Reload the pipeline's configuration.
+        """
+        self._load()
+
     def dump(self):
         """
         Dump the configuration as dict.

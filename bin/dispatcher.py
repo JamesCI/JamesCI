@@ -23,6 +23,7 @@
 import git
 import jamesci
 import os
+import subprocess
 import sys
 import yaml
 
@@ -48,11 +49,11 @@ def parse_config():
 
 
     :return: The parsed configuration as read-only dictionary.
-    :rtype: ReadonlyDict
+    :rtype: types.MappingProxyType(dict)
     """
     parser = jamesci.Config()
     parser.add_argument('project',
-                        help='project name, i.e. repositorie\'s name')
+                        help='project name, i.e. repository\'s name')
     parser.add_argument('revision',
                         help='revision to be build by this pipeline')
     parser.add_argument('--force', '-f', default=False, action='store_true',
@@ -181,3 +182,9 @@ if __name__ == "__main__":
     # assign a new ID for the pipeline and makes the pipeline's working
     # directory.
     pipeline.create(os.path.join(config['general']['root'], config['project']))
+
+    # Run the scheduler for the new pipeline, which will schedule the jobs to be
+    # run. A default scheduler will be used, but might be replaced by a custom
+    # one, if defined in the config.
+    subprocess.check_call([config.get('scheduler', 'james-scheduler'),
+                           config['project'], str(pipeline.id)])

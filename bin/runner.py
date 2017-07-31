@@ -112,11 +112,11 @@ def parse_config():
 
 
     :return: The parsed configuration as read-only dictionary.
-    :rtype: ReadonlyDict
+    :rtype: types.MappingProxyType(dict)
     """
     parser = jamesci.Config()
     parser.add_argument('project',
-                        help='project name, i.e. repositorie\'s name')
+                        help='project name, i.e. repository\'s name')
     parser.add_argument('pipeline', type=int,
                         help='pipeline ID of the job to be run')
     parser.add_argument('job', help='name of the job to be run')
