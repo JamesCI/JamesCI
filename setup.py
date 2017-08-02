@@ -19,11 +19,8 @@
 #
 
 import os
-import sys
 
-from distutils import log
-from distutils.core import setup
-from distutils.command.install_scripts import install_scripts
+from setuptools import setup
 
 
 def read(path):
@@ -36,36 +33,6 @@ def read(path):
     :rtype: str
     """
     return open(os.path.join(os.path.dirname(__file__), path)).read()
-
-
-class RenameScripts(install_scripts):
-    """
-    Customized distutils install_scripts command - renames all python scripts.
-    """
-
-    def run(self):
-        """
-        Install all scripts of James CI. The extension of python scripts will be
-        removed automatically and the prefix `james-` added.
-        """
-        super().run()
-
-        # Rename all python scripts. The extension will be removed and the
-        # common prefix 'james-' added to all scripts.
-        for script in self.get_outputs():
-            base, ext = os.path.splitext(script)
-            if ext == '.py':
-                dirname, basename = os.path.split(base)
-                dest = os.path.join(dirname, 'james-' + basename)
-
-                log.info('Renaming %s -> %s', script, dest)
-                if not self.dry_run:
-                    os.rename(script, dest)
-
-
-# Check the Python version. At least Python 3.4 is required for enum support.
-if sys.version_info < (3, 4):
-    sys.exit('Python 3.4 is required for James CI')
 
 
 setup(
@@ -89,9 +56,9 @@ setup(
         'Topic :: Utilities',
     ],
 
+    python_requires='>= 3.4',
     install_requires=[
         'appdirs',
-        'argparse',
         'GitPython',
         'portalocker',
         'PyYAML',
@@ -105,13 +72,8 @@ setup(
 
     packages=['jamesci'],
     scripts=[
-        'bin/dispatch.py',
-        'bin/run.py',
-        'bin/schedule.py',
+        'bin/james-dispatch',
+        'bin/james-run',
+        'bin/james-schedule',
     ],
-
-
-    cmdclass={
-        'install_scripts': RenameScripts
-    },
 )
