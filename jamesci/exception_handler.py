@@ -18,8 +18,8 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-import colors
 import sys
+import termcolor
 
 
 class ExceptionHandler(object):
@@ -80,7 +80,7 @@ class ExceptionHandler(object):
         :param traceback traceback: The exception's traceback.
         """
         if cls.header is not None:
-            print(colors.color(cls.header, fg='red', style='bold'),
+            print(termcolor.colored(cls.header, 'red', attrs=['bold']),
                   file=sys.stderr)
             print('', file=sys.stderr)
         cls._print_exc(exception)

@@ -90,13 +90,13 @@ setup(
     ],
 
     install_requires=[
-        'ansicolors',
         'appdirs',
         'argparse',
         'GitPython',
         'portalocker',
         'PyYAML',
         'setuptools',
+        'termcolor'
     ],
     setup_requires=[
         'setuptools-git-version',

@@ -18,8 +18,8 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-import colors
 import subprocess
+import termcolor
 
 
 class Shell(object):
@@ -70,5 +70,5 @@ class Shell(object):
                     failMessage = ('The command "{}" failed and exited with {}.'
                                    .format(command, e.returncode))
                 self._output.write('\n{}\n\n'.format(
-                    colors.color(failMessage, fg='red', style='bold')))
+                    termcolor.colored(failMessage, 'red', attrs=['bold'])))
                 raise
