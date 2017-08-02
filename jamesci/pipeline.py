@@ -27,6 +27,7 @@ import yaml
 
 from .job import Job, WriteableJob
 from .job_base import JobBase
+from .status import Status
 
 
 class Pipeline(JobBase):
@@ -328,6 +329,30 @@ class Pipeline(JobBase):
         :rtype: None, tuple
         """
         return tuple(self._stages) if self._stages else None
+
+    @property
+    def status(self):
+        """
+        :return: The pipeline's status.
+        :rtype: Status
+        """
+        # To get the pipeline's statues, we need to know, if a pipeline is exe-
+        # cuted right now. Iterate over all stages and get the minimum status of
+        # all jobs of this stage. The status of the first stage, that's not
+        # 'success' will be returned, or 'success', if all stages have 'success'
+        # as their status.
+        for stage in self._stages if self._stages else [None]:
+            # Get the minimum status of all jobs in this stage. If the status is
+            # not success, this stage will be executed right now, or failed, so
+            # its status will be returned.
+            status = min(job.status for job in self._jobs.values()
+                         if job.stage == stage)
+            if status is not Status.success:
+                return status
+
+        # All stages have been finished and no stage has an other status then
+        # 'success', thus the pipeline's status will be success.
+        return Status.success
 
     @property
     def wd(self):

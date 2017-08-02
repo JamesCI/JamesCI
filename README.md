@@ -227,3 +227,9 @@ job needs to be run inside a vm or container, or just an other host via SSH. In
 this case, you may simply define a wrapper in the `runner.wrapper` key in the
 configuration, which will setup the environment and calling `james-run` where it
 should be run.
+
+### Notifications
+
+After the last job has been finished, the last existing runner may execute
+optional notification scripts to e.g. notify the commiter via email. Just fil
+the `notify_script` key in the configuration with a bunch of scripts to execute.

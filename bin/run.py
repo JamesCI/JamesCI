@@ -69,6 +69,11 @@ class ExceptionHandler(jamesci.ExceptionHandler):
     Reference to the job that's handled by the runner.
     """
 
+    config = None
+    """
+    Reference to the runner's configuration.
+    """
+
     @classmethod
     def handler(cls, exception_type, exception, traceback):
         """
@@ -81,11 +86,9 @@ class ExceptionHandler(jamesci.ExceptionHandler):
         :param Exception exception: The thrown exception.
         :param traceback traceback: The exception's traceback.
         """
-        # If a job has been defined before the exception handler got called, set
-        # the job's status to errored.
+        # If a job has been defined before the exception handler got called,
+        # open the job's logfile, so the exeption's message can be dumped there.
         if cls.job:
-            with cls.job as job:
-                job.finish_job(jamesci.Status.errored)
             sys.stderr = tee = Tee(cls.job, sys.stderr)
 
             # Append two newlines to the job's logfile as spacer between the
@@ -95,6 +98,12 @@ class ExceptionHandler(jamesci.ExceptionHandler):
         # Call the 'real' exception handler, that will print the error messages
         # to stderr (and the job's log file, if defined above).
         super().handler(exception_type, exception, traceback)
+
+        # If a job has been defined before the exception handler got called,
+        # finish the job with the 'errored' status and execute the job's post-
+        # processing.
+        if cls.job:
+            finish_job(cls.job, jamesci.Status.errored, cls.config)
 
 
 def parse_config():
@@ -134,7 +143,7 @@ def git_commands(job, config):
 
 
     :param jamesci.Job job: The job to be run by the runner.
-    :param dict config: The runner's configuration.
+    :param jamesci.Config config: The runner's configuration.
     :return: The commands to be executed for cloning the job's repository.
     :rtype: list
     """
@@ -158,6 +167,48 @@ def git_commands(job, config):
         commands.append('git submodule update --init --recursive')
 
     return commands
+
+
+def finish_job(job, status, config):
+    """
+    Finish the job and execute the job's post-processing.
+
+
+    :param jamesci.Job job: The job to be finished.
+    :param jamesci.Status status: The job's finishing status.
+    :param jamesci.Config config: The runner's configuration.
+    """
+    # Finish the job with the given status. This will set the job's status and
+    # also the finish time in the job's meta-data.
+    with job as j:
+        j.finish_job(status)
+
+        # Get the job's pipeline and check the current status. If this job is
+        # the last one of all jobs of the pipeline, the pipeline's notification
+        # scripts need to be executed, e.g. to notify the user about the
+        # finished pipeline. Otherwise no post-processing needs to be done.
+        #
+        # Note: This check needs to be inside the job's context, as only one
+        #       runner must check this condition at the same time. This ensures,
+        #       only the last runner sees the pipeline in a finished state.
+        if not j.pipeline.status.final():
+            return
+
+    # All jobs have finished execution. Check if notification scripts have been
+    # defined in  the configuration and execute them. Note: These scripts will
+    # NOT be executed in the regular shell context of the job.
+    if 'notify_script' in config:
+        # Change into the pipeline's working directory, as the current working
+        # directory (a temporary directory) may have been already destroyed.
+        # In addition this gives the notification script access to the job's log
+        # and other files stored in this directory.
+        os.chdir(job.pipeline.wd)
+
+        notify = config['notify_script']
+        for script in (notify if isinstance(notify, list) else [notify]):
+            subprocess.check_call([script, config['project'],
+                                   str(job.pipeline.id),
+                                   str(job.pipeline.status)])
 
 
 if __name__ == "__main__":
@@ -188,11 +239,12 @@ if __name__ == "__main__":
                                config['pipeline']
                                ).jobs[config['job']]
 
-        # Save a reference to the job in the error handler, so its status may be
-        # set to errored, if an error occurs in the runner, that is not catched
-        # properly.
+        # Save a reference to the job and the runner's configuration in the
+        # error handler, so the job's status may be set to errored, if an error
+        # occurs in the runner, that is not catched properly.
         if 'JAMESCI_DEBUG' not in os.environ:
             eh.job = job
+            eh.config = config
     except KeyError as e:
         # If the pipeline has no job with the required name, a NameError
         # exception will be thrown, as the KeyError exception doesn't have a
@@ -257,8 +309,7 @@ if __name__ == "__main__":
                 # An error occured while setting up the job's environment or
                 # executing the setup-steps of the job. Set the job's status to
                 # errored and exit the runner gracefully.
-                with job as j:
-                    j.finish_job(jamesci.Status.errored)
+                finish_job(job, jamesci.Status.errored, config)
                 sys.exit(0)
 
             # Run the 'script' step of the job. If executing this step fails,
@@ -279,10 +330,9 @@ if __name__ == "__main__":
                         with contextlib.suppress(subprocess.CalledProcessError):
                             shell.run(job.steps['after_failed'])
 
-                    # Set the job's status to failed and exit the runner
-                    # gracefully.
-                    with job as j:
-                        j.finish_job(jamesci.Status.failed)
+                    # Finish the job with the 'failed' status and exit the
+                    # runner gracefully.
+                    finish_job(job, jamesci.Status.failed, config)
                     sys.exit(0)
 
                 # Run the 'after_success' step of the job. If executing this
@@ -303,8 +353,7 @@ if __name__ == "__main__":
                 try:
                     shell.run(job.steps['before_deploy'])
                 except subprocess.CalledProcessError:
-                    with job as j:
-                        j.finish_job(jamesci.Status.errored)
+                    finish_job(job, jamesci.Status.errored, config)
                     sys.exit(0)
 
             # Run the 'deploy' step of the job. If executing this step fails,
@@ -313,8 +362,7 @@ if __name__ == "__main__":
                 try:
                     shell.run(job.steps['deploy'])
                 except subprocess.CalledProcessError:
-                    with job as j:
-                        j.finish_job(jamesci.Status.failed)
+                    finish_job(job, jamesci.Status.failed, config)
                     sys.exit(0)
 
             # Run the 'after_deploy' and 'after_script' steps of the jobs. If
@@ -327,6 +375,6 @@ if __name__ == "__main__":
                     with contextlib.suppress(subprocess.CalledProcessError):
                         shell.run(job.steps[step])
 
-    # Set the job's status to successed.
-    with job as j:
-        j.finish_job(jamesci.Status.success)
+    # The job finished successfully. Set the job's status to 'success' and the
+    # finish time. In addition the job's post-processing will be triggered.
+    finish_job(job, jamesci.Status.success, config)

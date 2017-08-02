@@ -28,6 +28,12 @@ root: /srv/james/data
 # the pipeline to be scheduled.
 # scheduler: /path/to/scheduler
 
+# After the pipeline has been finished, a bunch of scripts may be executed to
+# notify the user. The scripts take three arguments: The project's name, the ID
+# of the finished pipeline and the pipeline's status.
+# notify_script:
+# - /path/to/notify/script
+
 runner:
   # If the runner should be run inside a vm or container, you'll need a wrapper
   # to setup the runner's environement and executing the runner in it. It takes

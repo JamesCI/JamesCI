@@ -49,3 +49,11 @@ class Status(enum.IntEnum):
         the enum's class name prefix when string representation is required.
         """
         return self.name
+
+    def final(self):
+        """
+        :return: If the status is a final state or not.
+        :rtype: bool
+        """
+        return (self in [self.canceled, self.errored, self.failed,
+                         self.success])
