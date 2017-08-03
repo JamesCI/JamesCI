@@ -23,4 +23,4 @@ from .exception_handler import ExceptionHandler
 from .pipeline import Pipeline, PipelineConstructor
 from .shell import Shell
 from .status import Status
-from .version import __version__
+from ._version import __version__

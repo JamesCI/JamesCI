@@ -37,7 +37,6 @@ def read(path):
 
 setup(
     name='JamesCI',
-    version_format='{tag}.{commitcount}+{gitsha}',
     description='James CI server utilities',
     long_description=read('README.md'),
     author='Alexander Haase',
@@ -62,12 +61,15 @@ setup(
         'GitPython',
         'portalocker',
         'PyYAML',
-        'setuptools',
         'termcolor'
     ],
     setup_requires=[
-        'setuptools-git-version',
+        'vcversioner',
     ],
+
+    vcversioner={
+        'version_module_paths': ['jamesci/_version.py'],
+    },
 
 
     packages=['jamesci'],

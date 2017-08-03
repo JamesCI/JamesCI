@@ -24,7 +24,7 @@ import os
 import types
 import yaml
 
-from .version import __version__ as jamesci_version
+from ._version import __version__ as jamesci_version
 
 
 class Config(argparse.ArgumentParser):

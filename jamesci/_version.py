@@ -18,13 +18,6 @@
 #   2017 Alexander Haase <ahaase@alexhaase.de>
 #
 
-import pkg_resources
-
-
-# Set the version string for this module. It will be gathered from setuptools,
-# which itself got it from this git. If the version from git is used without
-# installation, the version will be 'development version'.
-try:
-    __version__ = 'v' + pkg_resources.get_distribution('JamesCI').version
-except pkg_resources.DistributionNotFound:
-    __version__ = 'development version'
+# The following values are dummys and will be replaced during setup.
+__version__ = 'develop'
+__revision__ = 'unknown'
