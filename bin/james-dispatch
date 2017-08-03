@@ -96,7 +96,7 @@ def open_repository(revision):
         raise e
 
 
-def get_pipeline_config(revision):
+def get_pipeline_config(commit):
     """
     Get the config file for the pipeline to run.
 
