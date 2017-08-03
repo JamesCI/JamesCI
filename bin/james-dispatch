@@ -183,6 +183,12 @@ if __name__ == "__main__":
     # directory.
     pipeline.create(os.path.join(config['root'], config['project']))
 
+    # Remove 'GIT_DIR' from the environment, so the subprocesses don't get
+    # confused. Otherwise git commands inside the runner would try to access
+    # wrong paths.
+    if 'GIT_DIR' in os.environ:
+        del os.environ['GIT_DIR']
+
     # Run the scheduler for the new pipeline, which will schedule the jobs to be
     # run. A default scheduler will be used, but might be replaced by a custom
     # one, if defined in the config.
